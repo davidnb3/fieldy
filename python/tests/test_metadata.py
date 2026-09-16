@@ -46,12 +46,25 @@ def test_write_tags_round_trip_keeps_float32_pcm(tmp_path: Path):
     assert read_tags(str(wav)) == tags
 
 
-def test_write_tags_replaces_previous_soundly_tags(tmp_path: Path):
+def test_write_tags_replaces_previous_fieldy_tags(tmp_path: Path):
     wav = tmp_path / "h6.wav"
     _write_float32_stereo_48k(wav)
     write_tags(str(wav), ["Speech"])
     write_tags(str(wav), ["Pour", "Water"])
     assert read_tags(str(wav)) == ["Pour", "Water"]
+
+
+def test_read_tags_accepts_legacy_soundlylite_desc(tmp_path: Path):
+    from mutagen.id3 import TXXX, Encoding
+    from mutagen.wave import WAVE
+
+    wav = tmp_path / "h6.wav"
+    _write_float32_stereo_48k(wav)
+    tagged = WAVE(str(wav))
+    tagged.add_tags()
+    tagged.tags.add(TXXX(encoding=Encoding.UTF8, desc="SoundlyLite", text=["Speech"]))
+    tagged.save()
+    assert read_tags(str(wav)) == ["Speech"]
 
 
 def test_read_tags_empty_when_untagged(tmp_path: Path):

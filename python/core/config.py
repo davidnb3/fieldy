@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any
 
 RESERVED_FOLDERS = ("Mixed",)
-CONFIG_FILENAME = ".soundly-lite.json"
+CONFIG_FILENAME = ".Fieldy.json"
+LEGACY_CONFIG_FILENAME = ".soundly-lite.json"
 ALLOWED_KEYS = frozenset(
     {"libraryRoot", "confidenceThreshold", "conflictDelta", "analyzeChunkSeconds"}
 )
@@ -24,6 +25,10 @@ CLASS_MAP_PATH = REPO_ROOT / "config" / "yamnet_class_map.csv"
 
 
 def default_pointer_path() -> Path:
+    return Path.home() / ".Fieldy" / "pointer.json"
+
+
+def _legacy_pointer_path() -> Path:
     return Path.home() / ".soundly-lite" / "pointer.json"
 
 
@@ -114,7 +119,7 @@ def _number_in_range(value: Any, field: str, lo: float, hi: float) -> float:
 
 
 class ConfigStore:
-    """In-memory config plus `{libraryRoot}/.soundly-lite.json` and a home pointer."""
+    """In-memory config plus `{libraryRoot}/.Fieldy.json` and a home pointer."""
 
     def __init__(self, pointer_path: Path | None = None) -> None:
         self.pointer_path = pointer_path or default_pointer_path()
@@ -146,14 +151,27 @@ class ConfigStore:
         return {"ok": True, "config": dict(cfg)}
 
     def _load_from_disk(self) -> dict[str, Any] | None:
-        if not self.pointer_path.is_file():
+        pointer_file = self.pointer_path if self.pointer_path.is_file() else None
+        if pointer_file is None and self.pointer_path == default_pointer_path():
+            legacy = _legacy_pointer_path()
+            if legacy.is_file():
+                pointer_file = legacy
+        if pointer_file is None:
             return None
-        pointer = json.loads(self.pointer_path.read_text(encoding="utf-8"))
+        pointer = json.loads(pointer_file.read_text(encoding="utf-8"))
         library_root = pointer.get("libraryRoot")
         if not library_root:
             return None
-        config_file = Path(library_root) / CONFIG_FILENAME
-        if not config_file.is_file():
+        root = Path(library_root)
+        config_file = next(
+            (
+                candidate
+                for name in (CONFIG_FILENAME, LEGACY_CONFIG_FILENAME)
+                if (candidate := root / name).is_file()
+            ),
+            None,
+        )
+        if config_file is None:
             return None
         raw = json.loads(config_file.read_text(encoding="utf-8"))
         if not isinstance(raw, dict):

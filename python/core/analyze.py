@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 
 from core.classifier import PATCH_HOP_SECONDS, PATCH_WINDOW_SECONDS, YamnetClassifier
-from core.mapper import decide_destination, temporal_mix
+from core.mapper import decide_destination, foreground_frames, tag_scores, temporal_mix
 from core.preprocess import DEFAULT_CHUNK_SECONDS, yamnet_waveform_chunks
 
 
@@ -17,16 +17,32 @@ def destination_from_frames(
     *,
     threshold: float,
 ) -> tuple[str, list[str], dict[str, float]]:
-    """Mean-pool patches; Mixed only if nothing is above threshold or time-split unrelated events."""
+    """Mean-pool patches; Mixed only if nothing is above threshold or time-split unrelated events.
+
+    Destination averages non-Silence patches. Tags use the max of full-file and
+    foreground means so Silence can still be written when it is present.
+    """
     if frames.size == 0:
         clip = {name: 0.0 for name in class_names}
         dest, matching = decide_destination(clip, threshold=threshold)
         return dest, matching, clip
 
-    mean = frames.mean(axis=0)
-    clip = {name: float(mean[i]) for i, name in enumerate(class_names)}
-    dest, matching = decide_destination(clip, threshold=threshold)
-    if temporal_mix(frames, class_names, threshold=threshold):
+    mean_all = frames.mean(axis=0)
+    clip_all = {name: float(mean_all[i]) for i, name in enumerate(class_names)}
+    active = foreground_frames(frames, class_names)
+    if active.size:
+        mean_fg = active.mean(axis=0)
+        clip_fg = {name: float(mean_fg[i]) for i, name in enumerate(class_names)}
+        dest, _ignored = decide_destination(clip_fg, threshold=threshold)
+        mix_frames = active
+    else:
+        clip_fg = None
+        dest, _ignored = decide_destination(clip_all, threshold=threshold)
+        mix_frames = frames
+
+    clip = tag_scores(clip_all, clip_fg)
+    matching = [name for name in class_names if clip[name] >= threshold]
+    if temporal_mix(mix_frames, class_names, threshold=threshold):
         dest = "Mixed"
     return dest, matching, clip
 

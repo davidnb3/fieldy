@@ -9,8 +9,8 @@ alwaysApply: false
 ## 1. Zoom H6 32-bit float → YAMNet 16 kHz mono
 
 - Analysis buffer: resample + mono mixdown in RAM (or 16 kHz chunks).
-- Library file: original moved; same audio frames; tags only in a WAV ID3 chunk (`SoundlyLite`).
-- Ignore Silence / acoustic-environment / generic noise **patches** when deciding Mixed (they are not a second event).
+- Library file: original moved; same audio frames; tags only in a WAV ID3 chunk (`Fieldy`).
+- Ignore Silence / acoustic-environment / generic noise **patches** when deciding Mixed and when choosing the destination folder if any foreground class is above threshold. Silence may still be written as a tag. Mean-pool non-Silence patches for destination so sparse events in long quiet takes still win.
 
 ## 2. Long files — use YAMNet patches, do not isolate
 

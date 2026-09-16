@@ -10,10 +10,11 @@ Sidebar `#folder-list`: `Mixed` first, then existing legal class folders from `l
 
 Main `#file-list`: WAV name, duration, tags. Empty folder shows a short message.
 
-Mutations go through `window.soundly.call` only:
+Mutations go through `window.fieldy.call` only:
 
 - Move: dropdown of **other folders that already exist**. No free-text dest (blocks non-AudioSet names). Does not re-run YAMNet.
-- Rename: basename prompt → `rename_file`.
+- Rename: in-app name dialog (not `window.prompt`, which Electron does not show) → `rename_file`. Extension is kept if omitted.
 - Delete: confirm → `delete_file`.
+- Reclassify: folder button `#reclassify-folder` and per-row **Reclassify** call `classify_and_ingest` with existing library paths. Retag in place if the dest folder is unchanged; otherwise move the original (no extra copy).
 
 Keep the selected folder across `list_library` refresh when it still exists. Show errors in `#library-error`. No Chromium playback in MVP (32-bit float WAV often will not play).

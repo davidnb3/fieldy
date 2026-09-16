@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
-contextBridge.exposeInMainWorld("soundly", {
+contextBridge.exposeInMainWorld("fieldy", {
   call: (method, params) => ipcRenderer.invoke("python-call", method, params),
   onEvent: (handler) => {
     const listener = (_event, msg) => handler(msg);

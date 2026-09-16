@@ -1,4 +1,4 @@
-# Soundly Lite
+# Fieldy
 
 Desktop MVP for automated audio ingest, YAMNet classification, metadata tagging, and library file management. Inspired by a highly simplified Soundly workflow: drop Zoom H6 recordings, keep the original 32-bit float WAV untouched, classify from an in-memory 16 kHz mono view using YAMNet’s **0.96 s patches**, then move the original into a folder named after the winning **AudioSet class** (or `Mixed`).
 
@@ -14,7 +14,7 @@ Architecture for agents: `.cursor/rules/` (always-on `00-architecture.mdc`) plus
 | Backend | Python 3.12 child process, NDJSON over stdin/stdout |
 | Analysis | YAMNet via TensorFlow Hub (native long-file framing) |
 | Audio I/O | `soundfile` + `soxr` for the 16 kHz mono analysis buffer; original WAV never transcoded |
-| Tags | `mutagen` WAVE ID3 (`SoundlyLite`) on the **original** file |
+| Tags | `mutagen` WAVE ID3 (`Fieldy`) on the **original** file |
 
 ## Dev environment
 
@@ -24,7 +24,7 @@ This project needs **Python 3.12** (not macOS `/usr/bin/python3`, which is 3.9) 
 # once per machine, if missing:
 brew install python@3.12 node
 
-cd /path/to/soundly-lite
+cd /path/to/Fieldy
 /opt/homebrew/bin/python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip wheel
@@ -42,14 +42,14 @@ python -m pytest python/tests -q
 printf '%s\n' '{"id":"1","method":"ping"}' | python python/main.py
 ```
 
-Electron must spawn `.venv/bin/python` with `PYTHONUNBUFFERED=1`. App: `cd electron && npm start`.
+Electron must spawn `.venv/bin/python` with `PYTHONUNBUFFERED=1`. From the repo root: `npm start` (or `cd electron && npm start`). First time: `cd electron && npm install`.
 
-Reset onboarding: quit the app, delete `~/.soundly-lite/pointer.json`, relaunch.
+Reset onboarding: quit the app, delete `~/.Fieldy/pointer.json`, relaunch.
 
 ## Directory layout
 
 ```
-soundly-lite/
+Fieldy/
 ├── electron/                 # Desktop shell (main, preload, renderer)
 ├── python/                   # Automation + classifier
 │   └── core/                 # config, preprocess, classifier, mapper, …

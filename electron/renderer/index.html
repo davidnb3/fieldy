@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
-    <title>Soundly Lite</title>
+    <title>Fieldy</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -39,11 +39,24 @@
         </aside>
         <main>
           <div class="file-header">
-            <h2 id="folder-heading">Mixed</h2>
+            <div class="file-header-row">
+              <h2 id="folder-heading">Mixed</h2>
+              <button type="button" id="reclassify-folder" class="secondary">Re-run YAMNet</button>
+            </div>
             <p id="library-error" class="error hidden"></p>
           </div>
           <div id="file-list"></div>
         </main>
+      </div>
+    </div>
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-card">
+        <p id="modal-title">Rename file</p>
+        <input id="modal-input" type="text" spellcheck="false" />
+        <div class="modal-actions">
+          <button type="button" id="modal-cancel" class="secondary">Cancel</button>
+          <button type="button" id="modal-ok">Rename</button>
+        </div>
       </div>
     </div>
     <script src="app.js"></script>

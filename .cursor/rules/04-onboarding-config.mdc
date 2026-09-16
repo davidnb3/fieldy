@@ -12,7 +12,7 @@ Do **not** ask for allowed folder names or a custom tag vocabulary. Folders and 
 
 ## Persistence
 
-Save merged config (defaults + `libraryRoot`) to `{libraryRoot}/.soundly-lite.json`. Validate against `config/config.schema.json`.
+Save merged config (defaults + `libraryRoot`) to `{libraryRoot}/.Fieldy.json`. Validate against `config/config.schema.json`.
 
 On `save_config`, create:
 
@@ -33,4 +33,4 @@ No `folders[]`, no `allowedTags[]`, no `yamnetToFolderMap`, no `longFileSeconds`
 
 `#onboarding` visible when `get_config.needsOnboarding`. Native **Browse…** (`dialog.showOpenDialog`, directory) plus Save. `#library` hidden until save succeeds.
 
-To force onboarding again: quit the app, delete `~/.soundly-lite/pointer.json`. The old library folder can stay; delete it only if you want a clean disk. Restart Electron so Python reloads config from disk.
+To force onboarding again: quit the app, delete `~/.Fieldy/pointer.json`. The old library folder can stay; delete it only if you want a clean disk. Restart Electron so Python reloads config from disk.

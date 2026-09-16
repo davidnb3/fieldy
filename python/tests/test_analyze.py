@@ -88,6 +88,39 @@ def test_silence_patches_do_not_make_water_mixed():
     assert dest == "Pour"
 
 
+def test_sparse_speech_in_mostly_silence_goes_to_speech():
+    names = YAMNET_CLASS_NAMES_ORDERED
+    frames = np.zeros((20, 521), dtype=np.float32)
+    frames[:17, names.index("Silence")] = 0.9
+    frames[17:, names.index("Speech")] = 0.9
+    dest, matching, clip = destination_from_frames(frames, names, threshold=0.3)
+    assert dest == "Speech"
+    assert "Speech" in matching
+    assert "Silence" in matching
+    assert clip["Speech"] == pytest.approx(0.9)
+    assert clip["Silence"] == pytest.approx(17 / 20 * 0.9)
+
+
+def test_true_silence_file_stays_in_silence():
+    names = YAMNET_CLASS_NAMES_ORDERED
+    frames = np.zeros((8, 521), dtype=np.float32)
+    frames[:, names.index("Silence")] = 0.85
+    dest, matching, _clip = destination_from_frames(frames, names, threshold=0.3)
+    assert dest == "Silence"
+    assert matching == ["Silence"]
+
+
+def test_sparse_unrelated_active_regions_still_mixed():
+    names = YAMNET_CLASS_NAMES_ORDERED
+    frames = np.zeros((20, 521), dtype=np.float32)
+    frames[:14, names.index("Silence")] = 0.9
+    frames[14:17, names.index("Water")] = 0.9
+    frames[17:, names.index("Speech")] = 0.9
+    dest, matching, _clip = destination_from_frames(frames, names, threshold=0.3)
+    assert dest == "Mixed"
+    assert set(matching) >= {"Water", "Speech", "Silence"}
+
+
 def test_file_over_60s_still_gets_class_destination():
     names = YAMNET_CLASS_NAMES_ORDERED
     n_frames = 1 + int((70.0 - 0.96) / 0.48)

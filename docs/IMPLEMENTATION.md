@@ -9,7 +9,7 @@ Build in this order. Do not start Electron until the Python ingest pipeline work
 - Schema: `libraryRoot` plus optional thresholds / `analyzeChunkSeconds`.
 - Reserved folder: `Mixed` only. Class folders are sanitized AudioSet names, created on demand.
 - `assert_legal_destination`: `Mixed` or name in the official 521-class list (after sanitize).
-- Persist `{libraryRoot}/.soundly-lite.json`.
+- Persist `{libraryRoot}/.Fieldy.json`.
 - First-run: missing config → `needsOnboarding: true`.
 
 Exit criteria: tests reject non-AudioSet folder names; accept e.g. `Speech` and `Mixed`.
@@ -25,8 +25,8 @@ Exit criteria: 32-bit float 48 kHz stereo fixture → 16 kHz mono; original PCM 
 ## Phase 3 — YAMNet frames + destination — done
 
 - Load YAMNet once. Use native 0.96 s / 0.48 s framing; scores `(N, 521)`.
-- Clip scores = mean over frames. Destination = **top class** above threshold.
-- `Mixed` only if nothing is above threshold, or time splits between **unrelated** AudioSet families (water then speech). Overlapping water labels are not Mixed. Ignore Silence / noise patches when deciding Mixed.
+- Clip scores = mean over frames. Destination = **top foreground class** above threshold (Silence/noise do not win when a real class qualifies). Mean-pool non-Silence patches so sparse events in long quiet files still count.
+- `Mixed` only if nothing is above threshold, or time splits between **unrelated** AudioSet families (water then speech). Overlapping water labels are not Mixed. Ignore Silence / noise patches when deciding Mixed; Silence may still be a tag.
 - Tags = all classes ≥ threshold.
 - Files longer than 60 s still produce many frames and a real destination.
 
@@ -34,7 +34,7 @@ Exit criteria: synthetic clip vectors (top class, none → Mixed); related water
 
 ## Phase 4 — Metadata on the original — done
 
-- `python/core/metadata.py`: mutagen WAVE ID3 `TXXX`/`COMM` with desc `SoundlyLite`.
+- `python/core/metadata.py`: mutagen WAVE ID3 `TXXX`/`COMM` with desc `Fieldy`.
 - Tag in place **before** any move. Never transcode PCM.
 - Exit: round-trip `read_tags`; 32-bit float PCM checksum unchanged.
 
@@ -53,13 +53,13 @@ Exit criteria: synthetic clip vectors (top class, none → Mixed); related water
 ## Phase 7 — Electron main + preload — done
 
 - `electron/main.js`: spawn `.venv` Python, NDJSON by `id`, progress events, respawn on crash, reject in-flight calls.
-- `preload.js`: `window.soundly.call`, `onEvent`, `pathForFile` (`webUtils`), `statPath`. `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
+- `preload.js`: `window.fieldy.call`, `onEvent`, `pathForFile` (`webUtils`), `statPath`. `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
 - Exit: app starts; `get_config` reaches Python. Full onboarding/drop UX is Phases 8–10.
 
 ## Phase 8 — Onboarding UI — done
 
 - Library folder via native directory picker + Save. Creates `Mixed/` through `save_config`.
-- Reset for testing: quit app, delete `~/.soundly-lite/pointer.json`, relaunch.
+- Reset for testing: quit app, delete `~/.Fieldy/pointer.json`, relaunch.
 
 ## Phase 9 — Drop zone — done
 

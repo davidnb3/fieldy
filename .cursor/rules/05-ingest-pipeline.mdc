@@ -21,11 +21,11 @@ For each path:
 
 IPC: `classify_and_ingest` `{paths: [...]}` → `{jobs: [...]}`. Needs a saved `libraryRoot`. Progress events: `{file, stage, ...}`.
 
-CLI: `cd python && python -m core.ingest /abs/a.wav /abs/folder` (uses `~/.soundly-lite/pointer.json`).
+CLI: `cd python && python -m core.ingest /abs/a.wav /abs/folder` (uses `~/.Fieldy/pointer.json`).
 
 ## Metadata (`python/core/metadata.py`)
 
-WAV ID3 chunk, not RIFF INFO: `TXXX`/`COMM` desc=`SoundlyLite`. See `.cursor/rules/08-metadata.mdc`. 32-bit float PCM must remain bit-identical aside from the header.
+WAV ID3 chunk, not RIFF INFO: `TXXX`/`COMM` desc=`Fieldy`. See `.cursor/rules/08-metadata.mdc`. 32-bit float PCM must remain bit-identical aside from the header.
 
 ## Drop zone UI
 

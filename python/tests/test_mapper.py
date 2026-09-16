@@ -24,6 +24,24 @@ def test_close_scores_use_top_class_not_mixed():
     assert set(matching) == {"Wind", "Speech"}
 
 
+def test_silence_does_not_win_over_speech():
+    dest, matching = decide_destination(
+        {"Silence": 0.8, "Speech": 0.4, "Wind": 0.1},
+        threshold=0.3,
+    )
+    assert dest == "Speech"
+    assert set(matching) == {"Silence", "Speech"}
+
+
+def test_only_silence_stays_silence_folder():
+    dest, matching = decide_destination(
+        {"Silence": 0.9, "Speech": 0.05},
+        threshold=0.3,
+    )
+    assert dest == "Silence"
+    assert matching == ["Silence"]
+
+
 def test_unknown_goes_to_mixed():
     dest, matching = decide_destination(
         {"Wind": 0.05, "Speech": 0.04},

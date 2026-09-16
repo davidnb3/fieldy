@@ -44,11 +44,13 @@ Constants (must match YAMNet, not our invention):
 
 Pass **clip-level class scores** into `decide_destination`:
 
-- `matching` = class names with score ≥ threshold (these become tags).
+- `matching` = class names with score ≥ threshold (these become tags, including Silence).
 - 0 matching → dest `Mixed`.
-- else dest = **top class** (sanitized). Close scores among overlapping labels (Pour vs Water) do **not** create Mixed.
+- else dest = **top foreground class** (sanitized). Silence / room tone / generic noise do not win the folder when any non-background class is ≥ threshold. Close scores among overlapping labels (Pour vs Water) do **not** create Mixed.
 
-`temporal_mix` → Mixed only if two or more **unrelated foreground** classes each win a substantial fraction of frames (e.g. ≥ 20%). Ignore Silence / room tone / generic noise patches. Pour then Trickle is related. Water then Speech is not.
+`destination_from_frames` mean-pools **non-Silence patches** for the folder decision. Tags use the max of full-file mean and that foreground mean so sparse events still tag and Silence can still tag.
+
+`temporal_mix` → Mixed only if two or more **unrelated foreground** classes each win a substantial fraction of frames (e.g. ≥ 20% of the non-Silence patches). Ignore Silence / room tone / generic noise patches. Pour then Trickle is related. Water then Speech is not.
 
 Relatedness: AudioSet parent/child (ignoring the 7 top-level roots as the only shared ancestor) plus Water↔Liquid so nature-water and pour/trickle stay one family.
 

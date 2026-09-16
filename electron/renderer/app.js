@@ -7,6 +7,12 @@ const libraryRootInput = document.getElementById("library-root");
 const onboardingError = document.getElementById("onboarding-error");
 const saveButton = document.getElementById("save-config");
 
+const reclassifyFolder = document.getElementById("reclassify-folder");
+const modal = document.getElementById("modal");
+const modalTitle = document.getElementById("modal-title");
+const modalInput = document.getElementById("modal-input");
+const modalCancel = document.getElementById("modal-cancel");
+const modalOk = document.getElementById("modal-ok");
 let ingesting = false;
 let libraryBusy = false;
 let libraryTree = null;
@@ -49,15 +55,54 @@ function setJobStatus(filePath, text, kind) {
 async function collectIngestPaths(fileList) {
   const accepted = [];
   for (const file of fileList) {
-    const filePath = window.soundly.pathForFile(file);
+    const filePath = window.fieldy.pathForFile(file);
     if (!filePath) continue;
-    const info = await window.soundly.statPath(filePath);
+    const info = await window.fieldy.statPath(filePath);
     if (!info?.ok) continue;
     if (info.isDirectory || (info.isFile && isWavPath(filePath))) {
       accepted.push(filePath);
     }
   }
   return accepted;
+}
+
+function askRename(currentName) {
+  return new Promise((resolve) => {
+    modalTitle.textContent = "Rename file";
+    modalInput.value = currentName;
+    modal.classList.remove("hidden");
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      modalCancel.removeEventListener("click", onCancel);
+      modalOk.removeEventListener("click", onOk);
+      modalInput.removeEventListener("keydown", onKey);
+      modal.classList.add("hidden");
+      resolve(value);
+    };
+    const onCancel = () => finish(null);
+    const onOk = () => finish(modalInput.value.trim());
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        finish(null);
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finish(modalInput.value.trim());
+      }
+    };
+    modalCancel.addEventListener("click", onCancel);
+    modalOk.addEventListener("click", onOk);
+    modalInput.addEventListener("keydown", onKey);
+    const dot = currentName.lastIndexOf(".");
+    const end = dot > 0 ? dot : currentName.length;
+    requestAnimationFrame(() => {
+      modalInput.focus();
+      modalInput.setSelectionRange(0, end);
+    });
+  });
 }
 
 function showLibraryError(message) {
@@ -74,7 +119,7 @@ function formatDuration(seconds) {
 
 async function refresh() {
   showOnboardingError("");
-  const cfg = await window.soundly.call("get_config");
+  const cfg = await window.fieldy.call("get_config");
   if (!cfg || cfg.needsOnboarding) {
     onboarding.classList.remove("hidden");
     library.classList.add("hidden");
@@ -82,7 +127,7 @@ async function refresh() {
   }
   onboarding.classList.add("hidden");
   library.classList.remove("hidden");
-  const tree = await window.soundly.call("list_library");
+  const tree = await window.fieldy.call("list_library");
   renderTree(tree);
 }
 
@@ -119,9 +164,15 @@ function renderFiles() {
   const list = document.getElementById("file-list");
   const heading = document.getElementById("folder-heading");
   const folder = (libraryTree?.folders || []).find((item) => item.name === selectedFolder);
-  if (heading) heading.textContent = selectedFolder;
-  list.replaceChildren();
   const files = folder?.files || [];
+  if (heading) heading.textContent = selectedFolder;
+  if (reclassifyFolder) {
+    reclassifyFolder.disabled = ingesting || libraryBusy || !files.length;
+    reclassifyFolder.title = files.length
+      ? `Run YAMNet again on ${files.length} file(s) in ${selectedFolder}`
+      : "No files in this folder";
+  }
+  list.replaceChildren();
   if (!files.length) {
     const empty = document.createElement("p");
     empty.className = "empty";
@@ -180,10 +231,10 @@ function renderFiles() {
     renameBtn.type = "button";
     renameBtn.className = "secondary";
     renameBtn.textContent = "Rename";
-    renameBtn.addEventListener("click", () => {
-      const next = window.prompt("New file name", file.name);
-      if (!next || next.trim() === file.name) return;
-      mutateLibrary("rename_file", { path: file.path, newName: next.trim() });
+    renameBtn.addEventListener("click", async () => {
+      const next = await askRename(file.name);
+      if (!next || next === file.name) return;
+      mutateLibrary("rename_file", { path: file.path, newName: next });
     });
 
     const deleteBtn = document.createElement("button");
@@ -195,28 +246,50 @@ function renderFiles() {
       mutateLibrary("delete_file", { path: file.path });
     });
 
-    actions.append(renameBtn, deleteBtn);
+    const reclassifyBtn = document.createElement("button");
+    reclassifyBtn.type = "button";
+    reclassifyBtn.className = "secondary";
+    reclassifyBtn.textContent = "Reclassify";
+    reclassifyBtn.disabled = ingesting || libraryBusy;
+    reclassifyBtn.addEventListener("click", () => {
+      if (
+        !window.confirm(
+          `Re-run YAMNet on ${file.name}? It will be retagged and moved if the class changes.`
+        )
+      ) {
+        return;
+      }
+      classifyExisting([file.path]);
+    });
+
+    actions.append(renameBtn, deleteBtn, reclassifyBtn);
     row.append(name, duration, tags, actions);
     list.appendChild(row);
   }
 }
 
 async function mutateLibrary(method, params) {
-  if (libraryBusy) return;
+  if (libraryBusy || ingesting) return;
   libraryBusy = true;
   showLibraryError("");
+  renderFiles();
   try {
-    await window.soundly.call(method, params);
-    await refresh();
+    await window.fieldy.call(method, params);
   } catch (err) {
     showLibraryError(err.message || String(err));
   } finally {
     libraryBusy = false;
   }
+  try {
+    await refresh();
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+    renderFiles();
+  }
 }
 
 document.getElementById("browse-library").addEventListener("click", async () => {
-  const picked = await window.soundly.chooseLibraryRoot();
+  const picked = await window.fieldy.chooseLibraryRoot();
   if (picked) libraryRootInput.value = picked;
 });
 
@@ -228,7 +301,7 @@ saveButton.addEventListener("click", async () => {
   }
   saveButton.disabled = true;
   try {
-    await window.soundly.call("save_config", { libraryRoot });
+    await window.fieldy.call("save_config", { libraryRoot });
     await refresh();
   } catch (err) {
     showOnboardingError(err.message || String(err));
@@ -252,6 +325,65 @@ saveButton.addEventListener("click", async () => {
 
 dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
 
+async function runClassifyAndIngest(paths, { busyTitle, doneLabel }) {
+  if (ingesting || libraryBusy || !paths.length) return;
+  ingesting = true;
+  dropzone.classList.add("busy");
+  dropzoneTitle.textContent = busyTitle;
+  renderFiles();
+  jobRows.clear();
+  ingestJobs.replaceChildren();
+  ingestJobs.hidden = false;
+  for (const filePath of paths) {
+    if (isWavPath(filePath)) setJobStatus(filePath, "queued", "stage");
+  }
+  try {
+    const result = await window.fieldy.call("classify_and_ingest", { paths });
+    for (const job of result.jobs || []) {
+      if (job.ok) {
+        setJobStatus(job.path, `→ ${job.destination}`, "ok");
+      } else {
+        setJobStatus(job.path, job.error || "failed", "err");
+      }
+    }
+    const okCount = (result.jobs || []).filter((j) => j.ok).length;
+    dropzoneTitle.textContent = `Done: ${okCount} ${doneLabel}. Drop more WAV files when you want.`;
+  } catch (err) {
+    dropzoneTitle.textContent = err.message || String(err);
+    showLibraryError(err.message || String(err));
+  } finally {
+    ingesting = false;
+    dropzone.classList.remove("busy");
+  }
+  try {
+    await refresh();
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+    renderFiles();
+  }
+}
+
+function classifyExisting(paths) {
+  return runClassifyAndIngest(paths, {
+    busyTitle: "Reclassifying… first file may load YAMNet",
+    doneLabel: "reclassified",
+  });
+}
+
+reclassifyFolder.addEventListener("click", () => {
+  const folder = (libraryTree?.folders || []).find((item) => item.name === selectedFolder);
+  const files = folder?.files || [];
+  if (!files.length) return;
+  if (
+    !window.confirm(
+      `Re-run YAMNet on ${files.length} file(s) in ${selectedFolder}? Files are retagged and moved if the class changes. Originals are not copied.`
+    )
+  ) {
+    return;
+  }
+  classifyExisting(files.map((file) => file.path));
+});
+
 dropzone.addEventListener("drop", async (e) => {
   e.preventDefault();
   dropzone.classList.remove("dragover");
@@ -261,36 +393,13 @@ dropzone.addEventListener("drop", async (e) => {
     dropzoneTitle.textContent = "Drop WAV files or folders (WAV only)";
     return;
   }
-  ingesting = true;
-  dropzone.classList.add("busy");
-  dropzoneTitle.textContent = "Ingesting… first file may load YAMNet";
-  jobRows.clear();
-  ingestJobs.replaceChildren();
-  ingestJobs.hidden = false;
-  for (const filePath of paths) {
-    if (isWavPath(filePath)) setJobStatus(filePath, "queued", "stage");
-  }
-  try {
-    const result = await window.soundly.call("classify_and_ingest", { paths });
-    for (const job of result.jobs || []) {
-      if (job.ok) {
-        setJobStatus(job.path, `→ ${job.destination}`, "ok");
-      } else {
-        setJobStatus(job.path, job.error || "failed", "err");
-      }
-    }
-    const okCount = (result.jobs || []).filter((j) => j.ok).length;
-    dropzoneTitle.textContent = `Done: ${okCount} ingested. Drop more WAV files when you want.`;
-    await refresh();
-  } catch (err) {
-    dropzoneTitle.textContent = err.message || String(err);
-  } finally {
-    ingesting = false;
-    dropzone.classList.remove("busy");
-  }
+  await runClassifyAndIngest(paths, {
+    busyTitle: "Ingesting… first file may load YAMNet",
+    doneLabel: "ingested",
+  });
 });
 
-window.soundly.onEvent((msg) => {
+window.fieldy.onEvent((msg) => {
   if (msg.name !== "progress") return;
   const { file, stage, destination, error } = msg.payload || {};
   if (!file) return;

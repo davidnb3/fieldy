@@ -184,6 +184,7 @@ def test_silence_patches_do_not_force_mixed():
     dest, matching, _clip = destination_from_frames(frames, names, threshold=0.3)
     assert dest == "Water"
     assert "Water" in matching
+    assert "Silence" in matching
 
 
 def test_illegal_dest_folder_errors_and_does_not_mkdir(tmp_path: Path):

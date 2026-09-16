@@ -1,9 +1,9 @@
 ---
-description: Soundly Lite overall architecture, stack, AudioSet folders, YAMNet framing, and build order
+description: Fieldy overall architecture, stack, AudioSet folders, YAMNet framing, and build order
 alwaysApply: true
 ---
 
-# Soundly Lite — architecture (always apply)
+# Fieldy — architecture (always apply)
 
 Desktop MVP: Electron UI + Python child process + YAMNet. Inspired by a simplified Soundly.
 
@@ -19,7 +19,7 @@ Desktop MVP: Electron UI + Python child process + YAMNet. Inspired by a simplifi
 2. **Pristine originals.** Zoom H6 32-bit float WAV (often stereo 48/96 kHz) stays that format on disk. YAMNet sees only an **in-memory** 16 kHz mono float32 array. Do not write a sidecar downsample next to the original (temp+unlink only if unavoidable).
 3. **Long files use YAMNet’s own framing.** YAMNet is a patch classifier: 0.96 s windows, 0.48 s hop, scores shape `(N, 521)`. Run it on the **entire** analysis waveform (chunk the 16 kHz audio only for RAM, then concatenate frame scores). Mean-pool frames for clip-level destination; keep per-frame scores for Mixed/temporal conflict. Never skip classification because duration > 60 s.
 4. **Ambiguity.** Destination is the **top** AudioSet class above threshold. Overlapping labels (Pour + Water + Trickle) are tags, not Mixed. `Mixed` only when nothing is above threshold, or when **unrelated** classes dominate different time regions (water then speech). Relatedness uses the AudioSet ontology (plus a Water↔Liquid bridge). Write every matching class name as a tag regardless of destination.
-5. **Python owns disk.** Renderer calls `window.soundly.call(method, params)`. Electron main relays NDJSON to Python. No renderer `fs` mutations.
+5. **Python owns disk.** Renderer calls `window.fieldy.call(method, params)`. Electron main relays NDJSON to Python. No renderer `fs` mutations.
 
 ## Layout
 
@@ -46,6 +46,6 @@ Finish the Python CLI ingest path before expanding UI.
 
 ## Decision helper
 
-`python/core/mapper.py` `decide_destination` is **top class above threshold**. `temporal_mix` uses AudioSet relatedness (`python/core/ontology.py`) and ignores Silence/noise patches. Tags are written by `python/core/metadata.py` (WAV ID3 `SoundlyLite`). Add tests rather than rewriting.
+`python/core/mapper.py` `decide_destination` is **top foreground class above threshold** (Silence/noise do not win the folder when a real class qualifies). `destination_from_frames` mean-pools non-Silence patches for that decision; tags may still include Silence. `temporal_mix` uses AudioSet relatedness (`python/core/ontology.py`) and ignores Silence/noise patches. Tags are written by `python/core/metadata.py` (WAV ID3 `Fieldy`). Add tests rather than rewriting.
 
 When implementing, read the matching feature rule in `.cursor/rules/` and `docs/IMPLEMENTATION.md`.

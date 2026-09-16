@@ -18,6 +18,7 @@ body {
   font-family: "Inter", "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
+  color-scheme: dark;
 }
 
 .hidden {
@@ -176,14 +177,37 @@ main {
   min-height: 280px;
 }
 
-aside h2,
-.file-header h2 {
+aside h2 {
   margin: 0 0 12px;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+.file-header-row h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.file-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+#reclassify-folder {
+  padding: 6px 10px;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 #folder-list {
@@ -280,4 +304,46 @@ aside h2,
   max-width: 140px;
   margin: 0;
   background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.modal.hidden {
+  display: none !important;
+}
+
+.modal-card {
+  width: min(420px, calc(100vw - 48px));
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+#modal-title {
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+#modal-input {
+  width: 100%;
+  max-width: none;
+  margin-bottom: 16px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }

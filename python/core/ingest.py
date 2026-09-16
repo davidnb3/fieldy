@@ -148,7 +148,7 @@ def main() -> None:
 
     from core.config import ConfigStore
 
-    parser = argparse.ArgumentParser(description="Ingest WAV files into the Soundly Lite library.")
+    parser = argparse.ArgumentParser(description="Ingest WAV files into the Fieldy library.")
     parser.add_argument("paths", nargs="+")
     args = parser.parse_args()
     config = ConfigStore().get()

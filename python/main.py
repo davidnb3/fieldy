@@ -1,4 +1,4 @@
-"""Soundly Lite Python entrypoint: NDJSON IPC on stdin/stdout.
+"""Fieldy Python entrypoint: NDJSON IPC on stdin/stdout.
 
 Load YAMNet once. Never print non-JSON to stdout (logs go to stderr).
 """

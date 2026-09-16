@@ -11,10 +11,11 @@ alwaysApply: false
 ## Format
 
 - mutagen `WAVE` + ID3 chunk (not a PCM rewrite, not a sidecar `.txt`).
-- `TXXX` desc=`SoundlyLite`, text = ordered unique class names.
-- `COMM` desc=`SoundlyLite`, lang=`eng`, text = comma-separated same names (or an explicit `comment=`).
+- `TXXX` desc=`Fieldy`, text = ordered unique class names.
+- `COMM` desc=`Fieldy`, lang=`eng`, text = comma-separated same names (or an explicit `comment=`).
 - `read_tags(path)` returns the `TXXX` list. Untagged file → `[]`.
-- Re-tagging replaces previous SoundlyLite frames only.
+- Re-tagging replaces previous Fieldy frames and leftover `SoundlyLite` frames.
+- `read_tags` still accepts the old `SoundlyLite` descriptor so existing library files keep their tags.
 
 ## Invariants
 

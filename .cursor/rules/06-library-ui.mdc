@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Feature: interactive audio library UI
 
-Soundly-like basic explorer:
+Basic library explorer:
 
 - Left: `Mixed` (always) plus every class folder that already exists on disk (created by ingest). Do not list all 521 empty AudioSet classes.
 - Main: files in the selected folder (name, tags, duration).

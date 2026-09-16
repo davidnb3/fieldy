@@ -45,7 +45,7 @@ YAMNet is a **sliding-window** classifier, not a “one shot for the whole clip�
 
 The Hub model accepts a 1-D waveform of **any length**. Internally it frames it and returns `N` score vectors. Official `inference.py` **mean-pools** those frames for a clip-level ranking; per-frame scores show events that change over time.
 
-Soundly Lite uses the same mechanism:
+Fieldy uses the same mechanism:
 
 1. Resample the original to 16 kHz mono in RAM (or in ~60 s chunks with 0.96 s overlap if the 16 kHz buffer would be huge).
 2. Run YAMNet on every chunk; concatenate frame scores so the whole file is represented.
@@ -58,17 +58,22 @@ There is **no** `Long Samples` bypass and **no** “skip YAMNet after 60 seconds
 ## Classification decision
 
 ```
-clip_score[c] = mean_t(frame_score[t, c])   # c in 521 AudioSet names
-candidates = {c : clip_score[c] >= confidenceThreshold}
+clip_all[c] = mean_t(frame_score[t, c])
+clip_fg[c]  = mean of patches whose argmax is not Silence/noise
+score[c]    = max(clip_all[c], clip_fg[c])   # tags
+candidates  = {c : score[c] >= confidenceThreshold}
+fg_candidates = candidates minus Silence/noise
 
 if len(candidates) == 0:
     dest = Mixed
-elif unrelated classes each dominate a large share of patches:
+elif unrelated foreground classes each dominate a large share of non-Silence patches:
     dest = Mixed
+elif fg_candidates:
+    dest = sanitize(argmax clip_fg among fg_candidates)
 else:
-    dest = sanitize(argmax clip_score among candidates)
+    dest = Silence (or top background class)
 
-tags_to_write = all candidate class names
+tags_to_write = all candidate class names  # Silence included when it qualifies
 ```
 
 Tags are written even when destination is `Mixed`.

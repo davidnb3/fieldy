@@ -16,15 +16,42 @@ def decide_destination(
 ) -> tuple[str, list[str]]:
     """Return (destination_folder, matching class names for tags).
 
-    Destination is the top class above threshold. Overlapping AudioSet labels
-    (Pour + Water) stay on that top folder; they are not Mixed.
+    Destination is the top *foreground* class above threshold. Silence / noise
+    stay in `matching` (tags) but do not win the folder when a real class qualifies.
     """
     candidates = {k: v for k, v in class_scores.items() if v >= threshold}
     matching = list(candidates.keys())
     if not candidates:
         return mixed_name, matching
-    best_name, _best = max(candidates.items(), key=lambda kv: kv[1])
+    foreground = {k: v for k, v in candidates.items() if not is_background_class(k)}
+    pool = foreground or candidates
+    best_name, _best = max(pool.items(), key=lambda kv: kv[1])
     return sanitize_class_folder(best_name), matching
+
+
+def foreground_frames(
+    frame_scores: np.ndarray,
+    class_names: list[str],
+) -> np.ndarray:
+    """Rows whose winning class is not Silence / room tone / generic noise."""
+    if frame_scores.ndim != 2 or frame_scores.shape[0] == 0:
+        return frame_scores
+    winners = frame_scores.argmax(axis=1)
+    keep = np.array(
+        [not is_background_class(class_names[int(idx)]) for idx in winners],
+        dtype=bool,
+    )
+    return frame_scores[keep]
+
+
+def tag_scores(
+    clip_all: dict[str, float],
+    clip_foreground: dict[str, float] | None,
+) -> dict[str, float]:
+    """Per-class max of full-file mean and foreground-only mean (Silence stays visible)."""
+    if not clip_foreground:
+        return dict(clip_all)
+    return {name: max(clip_all[name], clip_foreground[name]) for name in clip_all}
 
 
 def temporal_mix(

@@ -42,7 +42,7 @@ alwaysApply: false
 - `ipcMain.handle("python-call", (e, method, params) => pythonCall(method, params))`
 - Promise map keyed by `id`. Bad stdout lines are logged, not fatal.
 - Events: `webContents.send("python-event", msg)`
-- preload: `window.soundly.call`, `onEvent`, `pathForFile`, `statPath`, `chooseLibraryRoot`
+- preload: `window.fieldy.call`, `onEvent`, `pathForFile`, `statPath`, `chooseLibraryRoot`
 - Spawn `.venv/bin/python` (`PYTHONUNBUFFERED=1`, `PYTHONPATH=python`). Missing venv → error dialog.
 - If Python exits, reject in-flight promises and respawn unless the app is quitting.
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.

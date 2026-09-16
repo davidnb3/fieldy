@@ -10,7 +10,7 @@ import soundfile as sf
 from core.classifier import YamnetClassifier
 from core.config import YAMNET_CLASS_NAMES_ORDERED, ConfigStore
 from core.ingest import expand_audio_paths, ingest_paths
-from core.metadata import read_tags
+from core.metadata import read_tags, write_tags
 
 
 class FakeSpeechClassifier(YamnetClassifier):
@@ -95,6 +95,23 @@ def test_ingest_collision_gets_unique_name(tmp_path: Path):
     )
     names = {Path(job["movedTo"]).name for job in jobs}
     assert names == {"clip.wav", "clip_1.wav"}
+
+
+def test_reingest_library_file_moves_when_class_changes(tmp_path: Path):
+    library = tmp_path / "library"
+    store = ConfigStore(pointer_path=tmp_path / "pointer.json")
+    store.save({"libraryRoot": str(library)})
+    src = library / "Silence" / "clip.wav"
+    src.parent.mkdir(parents=True)
+    _write_wav(src)
+    write_tags(str(src), ["Silence"])
+    jobs = ingest_paths([str(src)], store.get(), classifier=FakeSpeechClassifier())
+    assert jobs[0]["ok"] is True
+    assert jobs[0]["destination"] == "Speech"
+    moved = Path(jobs[0]["movedTo"])
+    assert moved.parent.name == "Speech"
+    assert not src.exists()
+    assert read_tags(str(moved)) == ["Speech"]
 
 
 def test_expand_audio_paths_walks_directory(tmp_path: Path):

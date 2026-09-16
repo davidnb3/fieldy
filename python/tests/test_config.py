@@ -50,7 +50,7 @@ def test_save_creates_mixed_and_config_file(tmp_path: Path):
     result = store.save({"libraryRoot": str(library)})
     assert result["ok"] is True
     assert (library / "Mixed").is_dir()
-    assert (library / ".soundly-lite.json").is_file()
+    assert (library / ".Fieldy.json").is_file()
     assert not (library / "Speech").exists()
 
     cfg = store.get()
@@ -62,3 +62,23 @@ def test_save_creates_mixed_and_config_file(tmp_path: Path):
     loaded = reloaded.get()
     assert loaded["libraryRoot"] == str(library)
     assert loaded["analyzeChunkSeconds"] == 60
+
+
+def test_load_accepts_legacy_config_filename(tmp_path: Path):
+    import json
+
+    library = tmp_path / "library"
+    library.mkdir()
+    (library / "Mixed").mkdir()
+    payload = {
+        "libraryRoot": str(library),
+        "confidenceThreshold": 0.3,
+        "conflictDelta": 0.15,
+        "analyzeChunkSeconds": 60,
+    }
+    (library / ".soundly-lite.json").write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    pointer = tmp_path / "pointer.json"
+    pointer.write_text(json.dumps({"libraryRoot": str(library)}) + "\n", encoding="utf-8")
+    loaded = ConfigStore(pointer_path=pointer).get()
+    assert loaded["libraryRoot"] == str(library)
+    assert "needsOnboarding" not in loaded

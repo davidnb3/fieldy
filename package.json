@@ -1,0 +1,8 @@
+{
+  "name": "Fieldy",
+  "private": true,
+  "scripts": {
+    "start": "npm start --prefix electron",
+    "install:electron": "npm install --prefix electron"
+  }
+}
