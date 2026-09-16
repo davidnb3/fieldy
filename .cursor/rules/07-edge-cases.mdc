@@ -1,0 +1,47 @@
+---
+description: Edge cases — 32-bit float prep, YAMNet long-file framing, Mixed, on-demand class folders
+globs: python/core/**/*.py
+alwaysApply: false
+---
+
+# Feature: edge cases (must remain handled)
+
+## 1. Zoom H6 32-bit float → YAMNet 16 kHz mono
+
+- Analysis buffer: resample + mono mixdown in RAM (or 16 kHz chunks).
+- Library file: original moved; same audio frames; tags only in a WAV ID3 chunk (`SoundlyLite`).
+- Ignore Silence / acoustic-environment / generic noise **patches** when deciding Mixed (they are not a second event).
+
+## 2. Long files — use YAMNet patches, do not isolate
+
+YAMNet outputs one 521-way score every 0.48 s of 16 kHz audio (0.96 s context). A 5-minute file yields on the order of hundreds of frames. That is the intended API.
+
+- Classify the **whole** file via frame scores + mean pool.
+- Chunk 16 kHz audio only to bound RAM; stitch scores.
+- Do **not** use a `Long Samples` folder or skip inference at 60 s.
+- Temporal mix of **unrelated** events (water then speech) → `Mixed` + all matching class tags. Related water labels (Pour/Trickle/Water) stay on the top class folder.
+
+## 3. Ambiguous / mixed / unknown
+
+- Two overlapping AudioSet classes both ≥ threshold (Pour and Water) → **top class folder**, write both as tags.
+- Nothing ≥ threshold → `Mixed`, tags may be empty.
+- Unrelated events in sequence (water then speech) → `Mixed`.
+- Destination folder name is the class (e.g. `Thunderstorm`), created on demand — not a custom user bucket.
+
+## 4. Folder names
+
+- Only `Mixed` and sanitized AudioSet class names.
+- Refuse mkdir of arbitrary labels like `My Podcasts` unless that string is an AudioSet class.
+
+## 5. Batch / H6 multi-track
+
+- Each dropped file is independent. One failure must not stop siblings.
+
+## 6. Name collisions
+
+- `fs_ops.unique_dest` adds `_1`, `_2`, … Never silently overwrite.
+
+## 7. Process
+
+- YAMNet load failure errors the job, does not hang Electron.
+- Python crash: respawn; UI shows backend offline.

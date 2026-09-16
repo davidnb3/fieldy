@@ -1,0 +1,36 @@
+---
+description: In-memory 16 kHz mono prep for YAMNet; original 32-bit float WAV untouched; chunk long files for RAM only
+globs: python/core/preprocess.py
+alwaysApply: false
+---
+
+# Feature: audio format preparation
+
+YAMNet requires **16 kHz mono** waveform values in roughly [-1, 1].
+
+Zoom H6 Studio typically writes **32-bit float WAV**, stereo, 48 kHz or 96 kHz.
+
+## Required behavior (`python/core/preprocess.py`)
+
+- `audio_info(path)` via `soundfile.info` (duration, channels, samplerate, subtype). Do not decode the whole file just to get duration.
+- `yamnet_waveform(path) -> np.ndarray[float32]`:
+  - Implemented with `soundfile` read + channel mean + `soxr` resample to 16 kHz (avoid librosa/numba in the Electron child).
+  - Mixdown stereo → mono; resample 48k/96k → 16000.
+  - Never overwrite `path`. Never change bit depth of the file that will be moved into the library.
+- If a debug dump is needed, write under the system temp dir and delete in `finally`.
+
+## Long files (do not skip YAMNet)
+
+YAMNet already handles arbitrary length by framing (see `02-yamnet-classifier.mdc`). Duration is **not** a reason to skip inference or dump into `Long Samples`.
+
+RAM strategy:
+
+- Prefer one 16 kHz mono array for the whole clip.
+- If that array would be huge (multi-hour), `yamnet_waveform_chunks(path, chunk_seconds=60, overlap_seconds=0.96)` yields successive 16 kHz slices with overlap of one patch window so the classifier can stitch `(N, 521)` scores with no gap. Still never write analysis audio next to the original.
+
+Do not use `max_seconds` as a “preview instead of classifying the file” path.
+
+## Tests to add
+
+- 32-bit float stereo 48 kHz fixture → 16 kHz mono; original PCM checksum unchanged after tag+move.
+- A file longer than 60 s still produces multiple YAMNet frames (not a Long Samples bypass).

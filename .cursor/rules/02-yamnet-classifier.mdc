@@ -1,0 +1,59 @@
+---
+description: YAMNet load-once classifier; native 0.96s/0.48s framing; folders are AudioSet class names
+globs: python/core/classifier.py,python/core/mapper.py,python/core/ontology.py,python/core/analyze.py
+alwaysApply: false
+---
+
+# Feature: YAMNet classifier + AudioSet folders
+
+## How YAMNet treats long audio (use this in-app)
+
+YAMNet is **not** a single-vector-for-the-whole-file model. After 16 kHz mono resampling it:
+
+1. STFT (25 ms window, 10 ms hop) → 64-bin mel spectrogram.
+2. Cuts **0.96 s patches** (96 mel frames) with **0.48 s hop** (50% overlap).
+3. Each patch → 521 AudioSet sigmoid scores.
+4. Output `scores` has shape **`(N, 521)`**, one row per patch. First patch needs ~0.975 s of audio.
+
+Official inference averages those rows for a clip-level top-5. Per-frame scores can also show events that change over time (the “score-o-gram”).
+
+**Application policy:** always run this framing on the full analysis waveform. For RAM, feed ~60 s chunks of 16 kHz audio with 0.96 s overlap and **concatenate frame scores**. Do not bypass classification for files > 60 s.
+
+Constants (must match YAMNet, not our invention):
+
+- `PATCH_WINDOW_SECONDS = 0.96`
+- `PATCH_HOP_SECONDS = 0.48`
+- `NUM_CLASSES = 521`
+- `SAMPLE_RATE = 16000`
+
+## Classifier (`python/core/classifier.py`)
+
+- Load `https://tfhub.dev/google/yamnet/1` once in `YamnetClassifier.load()`.
+- Class names from the model’s AudioSet CSV (not a user list).
+- `frame_scores(waveform) -> np.ndarray` shape `(N, 521)`.
+- `clip_scores(frame_scores) -> dict[str, float]` = mean over axis 0 (YAMNet’s usual clip aggregate).
+- Input is always 1-D float32 16 kHz mono.
+
+## Folders = class names
+
+- Destination folder = filesystem-safe AudioSet class name (`sanitize_class_folder` — replace `/` and other illegal chars).
+- `mkdir` that folder **the first time** a file is sorted there. Do not pre-create all 521 folders.
+- Manual moves may target `Mixed` or any official (sanitized) class name.
+
+## Mapping (`python/core/mapper.py`)
+
+Pass **clip-level class scores** into `decide_destination`:
+
+- `matching` = class names with score ≥ threshold (these become tags).
+- 0 matching → dest `Mixed`.
+- else dest = **top class** (sanitized). Close scores among overlapping labels (Pour vs Water) do **not** create Mixed.
+
+`temporal_mix` → Mixed only if two or more **unrelated foreground** classes each win a substantial fraction of frames (e.g. ≥ 20%). Ignore Silence / room tone / generic noise patches. Pour then Trickle is related. Water then Speech is not.
+
+Relatedness: AudioSet parent/child (ignoring the 7 top-level roots as the only shared ancestor) plus Water↔Liquid so nature-water and pour/trickle stay one family.
+
+No `yamnetToFolderMap`. No custom Wind/Noise/Voices buckets.
+
+## Tags vs folder
+
+One destination folder. Tags = **all** matching AudioSet class names. Write them even when dest is `Mixed`.

@@ -1,0 +1,28 @@
+---
+description: Tag original WAV headers in place; never transcode 32-bit float PCM
+globs: python/core/metadata.py
+alwaysApply: false
+---
+
+# Feature: metadata on the original file (Phase 4)
+
+`python/core/metadata.py` writes classification tags onto the **original WAV**. Analysis 16 kHz audio is never written next to it.
+
+## Format
+
+- mutagen `WAVE` + ID3 chunk (not a PCM rewrite, not a sidecar `.txt`).
+- `TXXX` desc=`SoundlyLite`, text = ordered unique class names.
+- `COMM` desc=`SoundlyLite`, lang=`eng`, text = comma-separated same names (or an explicit `comment=`).
+- `read_tags(path)` returns the `TXXX` list. Untagged file → `[]`.
+- Re-tagging replaces previous SoundlyLite frames only.
+
+## Invariants
+
+- 32-bit float / stereo / 48–96 kHz **samples stay bit-identical**. Tests hash PCM via `soundfile.read`, not the whole file (the header grows).
+- `audio_info` subtype remains `FLOAT`.
+- Tag **before** `shutil.move` in ingest (`python/core/ingest.py`).
+- MVP is WAVE (Zoom H6). Do not transcode to write tags.
+
+## Tests
+
+`python/tests/test_metadata.py`: round-trip names including commas (`Trickle, dribble`); replace tags; empty read; PCM checksum unchanged.

@@ -1,0 +1,19 @@
+---
+description: Phase 10 library explorer — select folders, list files, move/rename/delete via Python
+globs: electron/renderer/**
+alwaysApply: false
+---
+
+# Feature: library explorer (Phase 10)
+
+Sidebar `#folder-list`: `Mixed` first, then existing legal class folders from `list_library`. Never invent a folder picker of all 521 AudioSet names.
+
+Main `#file-list`: WAV name, duration, tags. Empty folder shows a short message.
+
+Mutations go through `window.soundly.call` only:
+
+- Move: dropdown of **other folders that already exist**. No free-text dest (blocks non-AudioSet names). Does not re-run YAMNet.
+- Rename: basename prompt → `rename_file`.
+- Delete: confirm → `delete_file`.
+
+Keep the selected folder across `list_library` refresh when it still exists. Show errors in `#library-error`. No Chromium playback in MVP (32-bit float WAV often will not play).

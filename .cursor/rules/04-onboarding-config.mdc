@@ -1,0 +1,36 @@
+---
+description: First-run library root only; folders come from YAMNet class names on ingest
+globs: python/core/config.py,config/**,electron/renderer/**
+alwaysApply: false
+---
+
+# Feature: onboarding (library root only)
+
+On first launch, block the library until the user sets **`libraryRoot`** (absolute directory).
+
+Do **not** ask for allowed folder names or a custom tag vocabulary. Folders and tags are YAMNet/AudioSet class names produced at ingest.
+
+## Persistence
+
+Save merged config (defaults + `libraryRoot`) to `{libraryRoot}/.soundly-lite.json`. Validate against `config/config.schema.json`.
+
+On `save_config`, create:
+
+```
+{libraryRoot}/Mixed/
+```
+
+Do not pre-create 521 class folders. Class folders appear when the first file is classified into that class.
+
+## Config fields
+
+- Required: `libraryRoot`
+- Optional defaults: `confidenceThreshold` 0.3, `analyzeChunkSeconds` 60 (16 kHz chunk size for RAM stitching, **not** a skip-YAMNet gate). `conflictDelta` may still appear in saved JSON but is unused.
+
+No `folders[]`, no `allowedTags[]`, no `yamnetToFolderMap`, no `longFileSeconds` bypass.
+
+## UI
+
+`#onboarding` visible when `get_config.needsOnboarding`. Native **Browse…** (`dialog.showOpenDialog`, directory) plus Save. `#library` hidden until save succeeds.
+
+To force onboarding again: quit the app, delete `~/.soundly-lite/pointer.json`. The old library folder can stay; delete it only if you want a clean disk. Restart Electron so Python reloads config from disk.

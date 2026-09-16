@@ -1,0 +1,33 @@
+---
+description: Interactive library explorer; folders are Mixed plus on-demand AudioSet class directories
+globs: python/core/library.py,python/core/fs_ops.py,electron/renderer/**
+alwaysApply: false
+---
+
+# Feature: interactive audio library UI
+
+Soundly-like basic explorer:
+
+- Left: `Mixed` (always) plus every class folder that already exists on disk (created by ingest). Do not list all 521 empty AudioSet classes.
+- Main: files in the selected folder (name, tags, duration).
+
+## Mutations (all via Python IPC — implemented)
+
+- **List:** `list_library` → `Mixed` first, then existing legal class folders only (never all 521 empty names).
+- **Move:** `move_file {src, destFolder}`. Path must be under `libraryRoot`. `destFolder` must be `Mixed` or an AudioSet class. Does not re-run YAMNet.
+- **Rename:** `rename_file {path, newName}` basename only; if there is no extension, the original suffix is kept.
+- **Delete:** `delete_file {path}` unlinks a file inside the library only.
+
+After each mutation, the UI should `list_library` again. Disk is source of truth.
+
+Renderer: `.cursor/rules/10-library-explorer.mdc`. Move destinations are existing folders only.
+
+## Constraints
+
+- Do not provide a UI to invent non-AudioSet folder names.
+- Manual move does not re-run YAMNet.
+- Playback is optional; 32-bit float WAV may not play in Chromium.
+
+## Look
+
+Dark panel UI: background `#1a1b1e`, accent `#ff8a3d`, dashed drop zone. No extra frameworks in MVP.

@@ -1,0 +1,32 @@
+---
+description: Ingest pipeline: YAMNet frames on full file, tag original, mkdir class folder on demand
+globs: python/core/ingest.py,python/core/metadata.py,python/core/fs_ops.py
+alwaysApply: false
+---
+
+# Feature: drag-and-drop ingest pipeline
+
+Orchestrator: `python/core/ingest.py` `ingest_paths(paths, config, classifier=..., on_progress=...)`.
+
+WAV only in MVP (`.wav` / `.wave`). Directories are walked for WAV files. Per-file errors stay in the job list; the batch continues.
+
+For each path:
+
+1. `inspect` — must be a readable WAV file.
+2. `analyze` — `classify_path` (full timeline, 16 kHz mono in RAM).
+3. Tags = matching AudioSet class names; dest = top class or `Mixed` (`assert_legal_destination`).
+4. `tag` — `write_tags` on the original **before** move.
+5. `move` — `{libraryRoot}/{dest}/` via `unique_dest` (`clip.wav`, `clip_1.wav`, …). If the file is already in that folder, retag in place and do not rename.
+6. `done` / `error` progress events.
+
+IPC: `classify_and_ingest` `{paths: [...]}` → `{jobs: [...]}`. Needs a saved `libraryRoot`. Progress events: `{file, stage, ...}`.
+
+CLI: `cd python && python -m core.ingest /abs/a.wav /abs/folder` (uses `~/.soundly-lite/pointer.json`).
+
+## Metadata (`python/core/metadata.py`)
+
+WAV ID3 chunk, not RIFF INFO: `TXXX`/`COMM` desc=`SoundlyLite`. See `.cursor/rules/08-metadata.mdc`. 32-bit float PCM must remain bit-identical aside from the header.
+
+## Drop zone UI
+
+See `.cursor/rules/09-dropzone.mdc`. `#dropzone` + `#ingest-jobs`; WAV/folders only; progress then `list_library`.

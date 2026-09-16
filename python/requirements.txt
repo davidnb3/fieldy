@@ -1,0 +1,10 @@
+# tensorflow-hub still imports pkg_resources; setuptools 82+ dropped it.
+setuptools>=70,<81
+tensorflow>=2.15
+tensorflow-hub
+librosa>=0.10
+soundfile
+soxr
+numpy
+mutagen
+pytest

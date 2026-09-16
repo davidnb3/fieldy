@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+    <title>Soundly Lite</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="onboarding" class="screen">
+      <div class="onboarding-card">
+        <h1>Set up your library</h1>
+        <p>
+          Choose a folder on this Mac. Sorted WAV files will be moved there into class folders
+          (for example Pour) plus Mixed. The app never creates all 521 AudioSet folders up front.
+        </p>
+        <section>
+          <label for="library-root">Library folder</label>
+          <div class="path-row">
+            <input id="library-root" type="text" placeholder="Choose a folder…" readonly />
+            <button type="button" id="browse-library" class="secondary">Browse…</button>
+          </div>
+        </section>
+        <p id="onboarding-error" class="error hidden"></p>
+        <button type="button" id="save-config">Save and open library</button>
+      </div>
+    </div>
+
+    <div id="library" class="screen hidden">
+      <header id="dropzone">
+        <p id="dropzone-title">Drop Zoom H6 WAV files or folders here</p>
+        <p id="dropzone-hint" class="hint">WAV only. Files are tagged and moved into your library. First classify loads YAMNet and can take a minute.</p>
+      </header>
+      <ul id="ingest-jobs" class="job-list" hidden></ul>
+      <div class="workspace">
+        <aside>
+          <h2>Folders</h2>
+          <nav id="folder-list"></nav>
+        </aside>
+        <main>
+          <div class="file-header">
+            <h2 id="folder-heading">Mixed</h2>
+            <p id="library-error" class="error hidden"></p>
+          </div>
+          <div id="file-list"></div>
+        </main>
+      </div>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+.DS_Store
+node_modules/
+dist/
+out/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+python/models/
+data/library/
+*.wav
+*.WAV
+.env
+*.log

@@ -1,0 +1,15 @@
+---
+description: Electron drop zone — WAV/folder ingest with progress list
+globs: electron/renderer/**,electron/main.js,electron/preload.js
+alwaysApply: false
+---
+
+# Feature: drop zone (Phase 9)
+
+Library screen `#dropzone`: drop WAV files or folders. Renderer uses `pathForFile` + `statPath`. Only directories and `.wav`/`.wave` files are sent to Python.
+
+`classify_and_ingest {paths}` moves tagged originals into `libraryRoot`. First analyze can be slow (YAMNet load). Disable further drops while `ingesting`.
+
+`#ingest-jobs` lists per-file status from progress events (`inspect` → `analyze` → `tag` → `move` → `done`/`error`) and the final job results (`→ Pour` or error text). Then `list_library` refresh.
+
+Prevent window default drag/drop so Chromium does not navigate. Python still walks folders for WAV; non-WAV inside a folder is skipped by ingest expand.

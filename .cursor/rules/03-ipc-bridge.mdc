@@ -1,0 +1,52 @@
+---
+description: Electron ↔ Python NDJSON IPC protocol and process lifecycle
+globs: python/main.py,python/ipc/**,electron/main.js,electron/preload.js
+alwaysApply: false
+---
+
+# Feature: IPC bridge
+
+## Transport
+
+- Electron `child_process.spawn(venv python, ["-u", "python/main.py"], { stdio: pipe })`.
+- `PYTHONUNBUFFERED=1`.
+- One JSON object per line on stdin/stdout.
+- **stdout = protocol only.** All logs, TF warnings, traceback → stderr.
+
+## Messages
+
+```json
+{"id": "1", "method": "classify_and_ingest", "params": {"paths": ["/abs/a.wav"]}}
+{"id": "1", "ok": true, "result": {"jobs": []}}
+{"id": "1", "ok": false, "error": "message"}
+{"type": "event", "name": "progress", "payload": {"file": "a.wav", "stage": "yamnet", "pct": 40}}
+```
+
+## Methods
+
+| method | params | result |
+| --- | --- | --- |
+| ping | {} | {pong:true} |
+| get_config | {} | config or {needsOnboarding:true} |
+| save_config | {libraryRoot, thresholds…} | {ok:true} |
+| classify_and_ingest | {paths: string[]} | {jobs: JobResult[]} |
+| list_library | {} | {libraryRoot, folders:[{name, files:[{name,path,tags,duration}]}]} |
+| move_file | {src, destFolder} | {path} — src must be inside libraryRoot; destFolder is Mixed or an AudioSet class |
+| rename_file | {path, newName} | {path} — basename only; extension kept if omitted |
+| delete_file | {path} | {ok:true} — file only, must be inside libraryRoot |
+
+`destFolder` must be `Mixed` or a sanitized AudioSet class name.
+
+## Electron
+
+- `ipcMain.handle("python-call", (e, method, params) => pythonCall(method, params))`
+- Promise map keyed by `id`. Bad stdout lines are logged, not fatal.
+- Events: `webContents.send("python-event", msg)`
+- preload: `window.soundly.call`, `onEvent`, `pathForFile`, `statPath`, `chooseLibraryRoot`
+- Spawn `.venv/bin/python` (`PYTHONUNBUFFERED=1`, `PYTHONPATH=python`). Missing venv → error dialog.
+- If Python exits, reject in-flight promises and respawn unless the app is quitting.
+- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
+
+## Security
+
+Do not enable `nodeIntegration`. Validate paths in Python. Ingest moves into `libraryRoot` only.
