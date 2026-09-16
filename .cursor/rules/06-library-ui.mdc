@@ -9,14 +9,17 @@ alwaysApply: false
 Basic library explorer:
 
 - Left: `Mixed` (always) plus every class folder that already exists on disk (created by ingest). Do not list all 521 empty AudioSet classes.
-- Main: files in the selected folder (name, tags, duration).
+- Main: files in the selected folder (play, name, tags, duration).
+- Bottom: `#player` waveform when a file is playing.
 
 ## Mutations (all via Python IPC — implemented)
 
 - **List:** `list_library` → `Mixed` first, then existing legal class folders only (never all 521 empty names).
 - **Move:** `move_file {src, destFolder}`. Path must be under `libraryRoot`. `destFolder` must be `Mixed` or an AudioSet class. Does not re-run YAMNet.
-- **Rename:** `rename_file {path, newName}` basename only; if there is no extension, the original suffix is kept.
+- **Rename:** `rename_file {path, newName}` basename only; if there is no extension, the original suffix is kept. UI: `#modal`, not `window.prompt`.
 - **Delete:** `delete_file {path}` unlinks a file inside the library only.
+- **Reclassify:** `classify_and_ingest` with library file paths.
+- **Play:** `prepare_playback` + `readPlaybackFile` — see `.cursor/rules/11-playback.mdc`.
 
 After each mutation, the UI should `list_library` again. Disk is source of truth.
 
@@ -26,7 +29,7 @@ Renderer: `.cursor/rules/10-library-explorer.mdc`. Move destinations are existin
 
 - Do not provide a UI to invent non-AudioSet folder names.
 - Manual move does not re-run YAMNet.
-- Playback is optional; 32-bit float WAV may not play in Chromium.
+- Playback uses a temp 16-bit WAV for Chromium; 32-bit float originals stay pristine. Waveform is our peak envelope, not YAMNet’s matplotlib score-o-gram.
 
 ## Look
 

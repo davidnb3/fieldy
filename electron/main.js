@@ -4,6 +4,7 @@
  */
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 
@@ -149,6 +150,18 @@ app.whenReady().then(() => {
     } catch (err) {
       return { ok: false, error: err.message };
     }
+  });
+  ipcMain.handle("read-playback-file", (_e, target) => {
+    if (typeof target !== "string" || !target) {
+      throw new Error("path required");
+    }
+    const resolved = path.resolve(target);
+    const tmpRoot = path.resolve(os.tmpdir()) + path.sep;
+    const name = path.basename(resolved);
+    if (!resolved.startsWith(tmpRoot) || !name.startsWith("fieldy-play-") || !name.toLowerCase().endsWith(".wav")) {
+      throw new Error("not a Fieldy playback file");
+    }
+    return fs.readFileSync(resolved);
   });
   createWindow();
 });

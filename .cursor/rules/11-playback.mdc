@@ -1,0 +1,32 @@
+---
+description: In-app playback — temp 16-bit WAV + peak waveform; original 32-bit float untouched
+globs: python/core/playback.py,electron/renderer/**,electron/main.js,electron/preload.js
+alwaysApply: false
+---
+
+# Feature: in-app playback
+
+Chromium often cannot play Zoom H6 **32-bit float** WAV. Fieldy does **not** transcode the library file.
+
+## Python (`python/core/playback.py`)
+
+`waveform_and_preview(path)` / IPC `prepare_playback {path}`:
+
+- Path must be inside `libraryRoot`.
+- One pass: write `{os.tmpdir()}/fieldy-play-*.wav` as **PCM_16**, same sample rate and channel count as the original; compute min/max **peaks** (default 1400 bins) from the mono mixdown of the original.
+- Cache by path + mtime + size. Temps are unlinked at Python process exit.
+- Original PCM checksum must not change.
+
+Do **not** use YAMNet’s tutorial matplotlib figure (16 kHz waveform + log-mel + class score-o-gram) as the player. That is classifier debug, not auditioning.
+
+## Electron
+
+- Row **▶** toggles play. `#player` footer: Pause/Play, filename, clock, `#player-wave` canvas.
+- Click waveform to seek.
+- `prepare_playback` then `window.fieldy.readPlaybackFile(previewPath)` → blob URL → `<audio>`.
+- Main `read-playback-file` only allows files under the OS temp dir whose name starts with `fieldy-play-` and ends with `.wav`.
+- CSP: `media-src blob:`.
+
+## Tests
+
+`python/tests/test_playback.py`: FLOAT original unchanged; preview subtype PCM_16; refuse paths outside `libraryRoot`.

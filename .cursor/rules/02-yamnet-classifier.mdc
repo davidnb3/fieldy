@@ -52,6 +52,8 @@ Pass **clip-level class scores** into `decide_destination`:
 
 `temporal_mix` → Mixed only if two or more **unrelated foreground** classes each win a substantial fraction of frames (e.g. ≥ 20% of the non-Silence patches). Ignore Silence / room tone / generic noise patches. Pour then Trickle is related. Water then Speech is not.
 
+The official YAMNet *tutorial* score-o-gram (waveform + log-mel + top-class matrix) is **not** the in-app player. Playback uses `python/core/playback.py` (see `11-playback.mdc`).
+
 Relatedness: AudioSet parent/child (ignoring the 7 top-level roots as the only shared ancestor) plus Water↔Liquid so nature-water and pour/trickle stay one family.
 
 No `yamnetToFolderMap`. No custom Wind/Noise/Voices buckets.

@@ -1,51 +1,58 @@
 ---
-description: Fieldy overall architecture, stack, AudioSet folders, YAMNet framing, and build order
+description: Fieldy overall architecture, stack, AudioSet folders, YAMNet framing, IPC, current product state
 alwaysApply: true
 ---
 
 # Fieldy — architecture (always apply)
 
-Desktop MVP: Electron UI + Python child process + YAMNet. Inspired by a simplified Soundly.
+Desktop app: Electron UI + Python child process + YAMNet. Inspired by a simplified Soundly. Repo path: `/Users/davidpieri/Fieldy`. Product name is **Fieldy** (not Soundly Lite). JS API is `window.fieldy`.
+
+## Current product (2026-09-16)
+
+Shipped: Phases 1–11 plus later UX. Python pytest only (`python -m pytest python/tests -q`); no Electron UI tests.
+
+- Onboarding: `libraryRoot` only. Config `{libraryRoot}/.Fieldy.json`, pointer `~/.Fieldy/pointer.json`. Still **reads** legacy `~/.soundly-lite/pointer.json` and `.soundly-lite.json`.
+- Drop WAV/folders → classify full timeline → tag original → move into AudioSet class folder or `Mixed`.
+- Destination = top **foreground** class. Mean-pool **non-Silence** patches. Silence/noise can still be **tags**. Sparse events in long quiet takes should not all land in `Silence/`.
+- Library: Mixed + existing class folders. Move (existing folders only), in-app rename dialog (`window.prompt` is a no-op in Electron), delete, **Re-run YAMNet** on a folder or file (same `classify_and_ingest`, no extra copy).
+- Playback: ▶ on the row; bottom `#player` peak waveform; Chromium plays a **temp 16-bit WAV**. Original 32-bit float is never transcoded. Not the YAMNet tutorial spectrogram/score-o-gram.
+- Start: from repo root `npm start` (forwards to `electron/`).
+
+**Not built:** auto-slicing long takes into regions, in-app YAMNet score-o-gram, packaging/installer, non-WAV formats.
 
 ## Stack (do not change without an explicit user request)
 
 - Electron HTML/CSS/JS (`electron/`). `contextIsolation: true`, `nodeIntegration: false`, preload `contextBridge`.
-- Python 3.11+ (`python/`) for FS, tagging, analysis. Long-lived process; YAMNet loaded once.
-- YAMNet via TensorFlow Hub. Prep with librosa/soundfile. Tags with mutagen. Never transcode the original.
+- Python 3.11+ (`python/`) for FS, tagging, analysis, playback preview. Long-lived process; YAMNet loaded once.
+- YAMNet via TensorFlow Hub. Prep with soundfile+soxr (not librosa in the Electron child). Tags with mutagen. Never transcode the original.
 
 ## Non-negotiables
 
-1. **Folders = AudioSet class names.** There is no user-defined folder list. Destination is the winning YAMNet/AudioSet class (filesystem-sanitized), created **on demand**. Reserved extra folder: `Mixed` only. Do **not** invent a custom ontology (Wind/Noise/Voices) and do **not** park long files in `Long Samples`.
-2. **Pristine originals.** Zoom H6 32-bit float WAV (often stereo 48/96 kHz) stays that format on disk. YAMNet sees only an **in-memory** 16 kHz mono float32 array. Do not write a sidecar downsample next to the original (temp+unlink only if unavoidable).
-3. **Long files use YAMNet’s own framing.** YAMNet is a patch classifier: 0.96 s windows, 0.48 s hop, scores shape `(N, 521)`. Run it on the **entire** analysis waveform (chunk the 16 kHz audio only for RAM, then concatenate frame scores). Mean-pool frames for clip-level destination; keep per-frame scores for Mixed/temporal conflict. Never skip classification because duration > 60 s.
-4. **Ambiguity.** Destination is the **top** AudioSet class above threshold. Overlapping labels (Pour + Water + Trickle) are tags, not Mixed. `Mixed` only when nothing is above threshold, or when **unrelated** classes dominate different time regions (water then speech). Relatedness uses the AudioSet ontology (plus a Water↔Liquid bridge). Write every matching class name as a tag regardless of destination.
-5. **Python owns disk.** Renderer calls `window.fieldy.call(method, params)`. Electron main relays NDJSON to Python. No renderer `fs` mutations.
+1. **Folders = AudioSet class names.** Destination is the winning YAMNet/AudioSet class (filesystem-sanitized), created **on demand**. Reserved extra folder: `Mixed` only. Do **not** invent a custom ontology and do **not** park long files in `Long Samples`.
+2. **Pristine originals.** Zoom H6 32-bit float WAV stays that format on disk. YAMNet sees only an **in-memory** 16 kHz mono float32 array. Playback preview is temp+unlink (16-bit WAV under the system temp dir), never a sidecar next to the original.
+3. **Long files use YAMNet’s own framing.** 0.96 s windows, 0.48 s hop, scores `(N, 521)`. Run on the **entire** analysis waveform (chunk 16 kHz audio only for RAM, concatenate frame scores). Never skip classification because duration > 60 s.
+4. **Ambiguity.** Destination is the **top foreground** class above threshold. Overlapping labels are tags, not Mixed. `Mixed` only when nothing is above threshold, or **unrelated** classes dominate different **non-Silence** time regions. Write every matching class name as a tag (Silence included when it qualifies).
+5. **Python owns disk.** Renderer calls `window.fieldy.call(method, params)`. Electron main relays NDJSON to Python. No renderer `fs` mutations. Playback bytes: `window.fieldy.readPlaybackFile` only for `fieldy-play-*.wav` under the OS temp dir.
 
 ## Layout
 
 - Docs: `docs/ARCHITECTURE.md`, `docs/IMPLEMENTATION.md`
 - Class map / ontology: `config/yamnet_class_map.csv`, `config/audioset_ontology.json`
-- Python: `python/main.py`, `python/ipc/protocol.py`, `python/core/*` (`ontology.py`, `metadata.py`, `analyze.py`, …)
-- UI: `electron/main.js`, `preload.js`, `renderer/*`
+- Python: `python/main.py`, `python/ipc/*`, `python/core/*` (`preprocess.py`, `analyze.py`, `mapper.py`, `ontology.py`, `metadata.py`, `ingest.py`, `playback.py`, …)
+- UI: `electron/main.js`, `preload.js`, `renderer/*`; root `package.json` scripts `start` → `electron/`
 
 ## IPC (NDJSON)
 
-Request: `{"id","method","params"}`
-Response: `{"id","ok","result"|"error"}`
+Request: `{"id","method","params"}`  
+Response: `{"id","ok","result"|"error"}`  
 Event: `{"type":"event","name":"progress","payload"}`
 
-Methods: `ping`, `get_config`, `save_config`, `classify_and_ingest`, `list_library`, `move_file`, `rename_file`, `delete_file`.
+Methods: `ping`, `get_config`, `save_config`, `classify_and_ingest`, `list_library`, `move_file`, `rename_file`, `delete_file`, `prepare_playback`.
 
 Stdout is JSON only. Logs on stderr.
 
-## Build order
-
-Phase 1 config (libraryRoot only) → 2 preprocess → 3 YAMNet frames + clip aggregate + Mixed → 4 metadata → 5 ingest → 6 IPC handlers → 7 Electron bridge → 8 library-root onboarding → 9 dropzone → 10 library CRUD → 11 fixtures.
-
-Finish the Python CLI ingest path before expanding UI.
-
 ## Decision helper
 
-`python/core/mapper.py` `decide_destination` is **top foreground class above threshold** (Silence/noise do not win the folder when a real class qualifies). `destination_from_frames` mean-pools non-Silence patches for that decision; tags may still include Silence. `temporal_mix` uses AudioSet relatedness (`python/core/ontology.py`) and ignores Silence/noise patches. Tags are written by `python/core/metadata.py` (WAV ID3 `Fieldy`). Add tests rather than rewriting.
+`decide_destination` = top foreground class ≥ threshold. `destination_from_frames` mean-pools non-Silence patches for the folder; tags = max(full-file mean, foreground mean). `temporal_mix` ignores Silence/noise patches. WAV ID3 desc `Fieldy` (still reads old `SoundlyLite`). Playback: `python/core/playback.py`. Add tests rather than rewriting working mapper/preprocess.
 
 When implementing, read the matching feature rule in `.cursor/rules/` and `docs/IMPLEMENTATION.md`.

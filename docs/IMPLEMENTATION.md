@@ -2,7 +2,7 @@
 
 Build in this order. Do not start Electron until the Python ingest pipeline works from the CLI.
 
-**Status (2026-09-16):** Phases **1–11 are done**. Automated coverage is Python pytest only (`python -m pytest python/tests -q`); there are no Electron UI tests.
+**Status (2026-09-16):** Phases **1–11 are done**. After that (also done): Silence-aware destination, reclassify in the library, in-app rename dialog, in-app playback, rename to Fieldy. Automated coverage is Python pytest only (`python -m pytest python/tests -q`); there are no Electron UI tests.
 
 ## Phase 1 — Config core (Python) — done
 
@@ -46,14 +46,14 @@ Exit criteria: synthetic clip vectors (top class, none → Mixed); related water
 
 ## Phase 6 — NDJSON IPC server — done
 
-- All methods: `ping`, `get_config`, `save_config`, `classify_and_ingest`, `list_library`, `move_file`, `rename_file`, `delete_file`.
+- All methods: `ping`, `get_config`, `save_config`, `classify_and_ingest`, `list_library`, `move_file`, `rename_file`, `delete_file`, `prepare_playback`.
 - Mutations must stay inside `libraryRoot`. stdout JSON only.
-- Exit: tests list Mixed + existing class folders; refuse outside paths and illegal dest folders.
+- Exit: tests list Mixed + existing class folders; refuse outside paths and illegal dest folders. `prepare_playback` was added later (temp 16-bit preview).
 
 ## Phase 7 — Electron main + preload — done
 
 - `electron/main.js`: spawn `.venv` Python, NDJSON by `id`, progress events, respawn on crash, reject in-flight calls.
-- `preload.js`: `window.fieldy.call`, `onEvent`, `pathForFile` (`webUtils`), `statPath`. `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
+- `preload.js`: `window.fieldy.call`, `onEvent`, `pathForFile` (`webUtils`), `statPath`, `readPlaybackFile`. `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
 - Exit: app starts; `get_config` reaches Python. Full onboarding/drop UX is Phases 8–10.
 
 ## Phase 8 — Onboarding UI — done
@@ -68,8 +68,9 @@ Exit criteria: synthetic clip vectors (top class, none → Mixed); related water
 
 ## Phase 10 — Library explorer — done
 
-- Sidebar: `Mixed` + existing class folders. File list: name, duration, tags.
-- Move/rename/delete via Python IPC. Move dropdown uses folders that already exist (no typed dest).
+- Sidebar: `Mixed` + existing class folders. File list: play, name, duration, tags.
+- Move/rename/delete via Python IPC. Move dropdown uses folders that already exist (no typed dest). Rename is an in-app dialog (`window.prompt` does not work in Electron).
+- Reclassify: **Re-run YAMNet** on the open folder or **Reclassify** on a row (`classify_and_ingest` on library paths).
 
 ## Phase 11 — Edge-case hardening — done
 
@@ -80,4 +81,16 @@ See `.cursor/rules/07-edge-cases.mdc`. Confirm with tests (add tests rather than
 - Ambiguous **unrelated** time split → Mixed with all tags. Overlapping labels (Pour/Water) use the top class folder. Silence patches do not force Mixed.
 - Illegal folder name on move → error, no mkdir.
 
-The original build order ends here. Next work is exercising the app on real Zoom H6 WAVs, not a numbered phase.
+## After the original 11 phases — done
+
+Not numbered in the first plan; treat as current product:
+
+- **Silence-aware destination:** folder from mean of non-Silence patches; Silence still allowed as a tag (`destination_from_frames` / `decide_destination`).
+- **Reclassify in place:** library UI → `classify_and_ingest` on existing paths; retag; move if class changed. Busy flag must be cleared **before** `list_library` refresh so Reclassify buttons re-enable.
+- **Rename dialog:** `#modal` in the renderer. Do not use `window.prompt`.
+- **Playback:** `prepare_playback` + bottom waveform. Temp PCM_16 only. See `.cursor/rules/11-playback.mdc`.
+- **Name:** Fieldy. Config `.Fieldy.json` / `~/.Fieldy/`. Legacy Soundly Lite paths and ID3 `SoundlyLite` still read.
+
+## Suggested next work (not scheduled)
+
+Judge classification on real H6/forest takes after reclassify. Then, only if needed: auto-slice long sparse files, YAMNet score-o-gram for “why this folder”, or a packaged build. Do not start those unless the user asks.

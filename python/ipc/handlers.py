@@ -11,6 +11,7 @@ from core.library import (
     normalize_new_name,
     resolve_library_file,
 )
+from core.playback import waveform_and_preview
 
 Handler = Callable[[dict[str, Any]], Any]
 ProgressFn = Callable[[dict[str, Any]], None]
@@ -59,6 +60,10 @@ def build_handlers(
         delete_file(str(source))
         return {"ok": True}
 
+    def prepare_playback(params: dict[str, Any]) -> dict[str, Any]:
+        source = resolve_library_file(cfg.get(), str(params.get("path") or ""))
+        return waveform_and_preview(str(source))
+
     return {
         "ping": lambda _p: {"pong": True},
         "get_config": lambda _p: cfg.get(),
@@ -68,4 +73,5 @@ def build_handlers(
         "move_file": move_file,
         "rename_file": rename,
         "delete_file": delete,
+        "prepare_playback": prepare_playback,
     }

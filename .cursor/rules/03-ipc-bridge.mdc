@@ -34,6 +34,7 @@ alwaysApply: false
 | move_file | {src, destFolder} | {path} — src must be inside libraryRoot; destFolder is Mixed or an AudioSet class |
 | rename_file | {path, newName} | {path} — basename only; extension kept if omitted |
 | delete_file | {path} | {ok:true} — file only, must be inside libraryRoot |
+| prepare_playback | {path} | {previewPath, duration, peaksMin, peaksMax, …} — 16-bit temp WAV + waveform peaks; original unchanged |
 
 `destFolder` must be `Mixed` or a sanitized AudioSet class name.
 
@@ -42,11 +43,13 @@ alwaysApply: false
 - `ipcMain.handle("python-call", (e, method, params) => pythonCall(method, params))`
 - Promise map keyed by `id`. Bad stdout lines are logged, not fatal.
 - Events: `webContents.send("python-event", msg)`
-- preload: `window.fieldy.call`, `onEvent`, `pathForFile`, `statPath`, `chooseLibraryRoot`
+- preload: `window.fieldy.call`, `onEvent`, `pathForFile`, `statPath`, `chooseLibraryRoot`, `readPlaybackFile`
 - Spawn `.venv/bin/python` (`PYTHONUNBUFFERED=1`, `PYTHONPATH=python`). Missing venv → error dialog.
 - If Python exits, reject in-flight promises and respawn unless the app is quitting.
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
 
 ## Security
 
-Do not enable `nodeIntegration`. Validate paths in Python. Ingest moves into `libraryRoot` only.
+Do not enable `nodeIntegration`. Validate paths in Python. Ingest moves into `libraryRoot` only. `read-playback-file` is restricted to `fieldy-play-*.wav` under the OS temp directory.
+
+Root `package.json` `npm start` → `electron/`. Move-to `<select>` must set `color` (native select defaults to black on the dark UI).

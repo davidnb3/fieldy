@@ -8,7 +8,7 @@ alwaysApply: false
 
 Library screen `#dropzone`: drop WAV files or folders. Renderer uses `pathForFile` + `statPath`. Only directories and `.wav`/`.wave` files are sent to Python.
 
-`classify_and_ingest {paths}` moves tagged originals into `libraryRoot`. First analyze can be slow (YAMNet load). Disable further drops while `ingesting`.
+`classify_and_ingest {paths}` moves tagged originals into `libraryRoot`. The same method is used when the user reclassifies files already in the library. First analyze can be slow (YAMNet load). Disable further drops while `ingesting`. After the job, set `ingesting = false` **before** `refresh()` so Reclassify / Re-run YAMNet enable again.
 
 `#ingest-jobs` lists per-file status from progress events (`inspect` → `analyze` → `tag` → `move` → `done`/`error`) and the final job results (`→ Pour` or error text). Then `list_library` refresh.
 

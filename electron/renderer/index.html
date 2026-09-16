@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; media-src blob:" />
     <title>Fieldy</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -48,6 +48,14 @@
           <div id="file-list"></div>
         </main>
       </div>
+      <footer id="player" class="player hidden">
+        <button type="button" id="player-toggle" class="secondary">Pause</button>
+        <div id="player-meta">
+          <div id="player-name"></div>
+          <div id="player-time" class="hint"></div>
+        </div>
+        <canvas id="player-wave" height="72"></canvas>
+      </footer>
     </div>
     <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-card">

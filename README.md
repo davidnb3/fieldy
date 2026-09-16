@@ -1,30 +1,37 @@
 # Fieldy
 
-Desktop MVP for automated audio ingest, YAMNet classification, metadata tagging, and library file management. Inspired by a highly simplified Soundly workflow: drop Zoom H6 recordings, keep the original 32-bit float WAV untouched, classify from an in-memory 16 kHz mono view using YAMNet’s **0.96 s patches**, then move the original into a folder named after the winning **AudioSet class** (or `Mixed`).
+Desktop app for automated audio ingest, YAMNet classification, metadata tagging, library management, and in-app playback. Inspired by a highly simplified Soundly workflow: drop Zoom H6 recordings, keep the original 32-bit float WAV untouched, classify from an in-memory 16 kHz mono view using YAMNet’s **0.96 s patches**, then move the original into a folder named after the winning **AudioSet class** (or `Mixed`).
 
-Architecture for agents: `.cursor/rules/` (always-on `00-architecture.mdc`) plus `docs/ARCHITECTURE.md`. Build order and **done vs next**: `docs/IMPLEMENTATION.md`.
+Architecture for agents: `.cursor/rules/` (always-on `00-architecture.mdc`) plus `docs/ARCHITECTURE.md`. History of the original 11 phases: `docs/IMPLEMENTATION.md`.
 
-**Status (2026-09-16):** Phases **1–11 are done** (Python pipeline, IPC, Electron onboarding, drop zone, library explorer, edge-case hardening). Tests: `python -m pytest python/tests -q` only — no Electron UI tests. There is no Phase 12 in the original plan.
+**Status (2026-09-16):** Original phases **1–11 are done**, plus reclassify-in-place, Silence-aware destination, in-app rename dialog, and playback. Product name is **Fieldy** (repo `/Users/davidpieri/Fieldy`). Tests: `python -m pytest python/tests -q` only — no Electron UI tests.
+
+## What the app does
+
+- First run: pick a **library root**. Folders are AudioSet class names created on demand, plus **`Mixed`**.
+- Drop WAV files or folders. Python tags the original (ID3 desc `Fieldy`) and moves it.
+- Destination is the top **non-Silence** class from YAMNet frames (mean-pool active patches so long quiet forest takes are not all filed as Silence). Silence may still appear as a tag.
+- Library explorer: move (existing folders only), rename (in-app dialog — not `window.prompt`), delete, **Re-run YAMNet** on a file or folder.
+- **▶** plays in a bottom waveform. Chromium hears a temp 16-bit copy; the library file stays 32-bit float.
 
 ## Stack
 
 | Layer | Tech |
 | --- | --- |
-| Desktop UI | Electron (HTML/CSS/JS), context isolation + preload |
+| Desktop UI | Electron (HTML/CSS/JS), context isolation + preload (`window.fieldy`) |
 | Backend | Python 3.12 child process, NDJSON over stdin/stdout |
 | Analysis | YAMNet via TensorFlow Hub (native long-file framing) |
-| Audio I/O | `soundfile` + `soxr` for the 16 kHz mono analysis buffer; original WAV never transcoded |
+| Audio I/O | `soundfile` + `soxr` for 16 kHz mono analysis; temp PCM_16 for playback only |
 | Tags | `mutagen` WAVE ID3 (`Fieldy`) on the **original** file |
 
 ## Dev environment
 
-This project needs **Python 3.12** (not macOS `/usr/bin/python3`, which is 3.9) and **Node.js** for Electron. On this machine they are Homebrew `python@3.12` and `node`.
+Python **3.12** (not macOS `/usr/bin/python3`) and **Node.js**. On this machine: Homebrew `python@3.12` and `node`.
 
 ```bash
-# once per machine, if missing:
 brew install python@3.12 node
 
-cd /path/to/Fieldy
+cd /Users/davidpieri/Fieldy
 /opt/homebrew/bin/python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip wheel
@@ -32,19 +39,19 @@ pip install -r python/requirements.txt
 
 cd electron
 npm install
-# if Electron’s binary is missing (npm skipped install scripts):
+# if Electron’s binary is missing:
 node node_modules/electron/install.js
 
-# smoke checks
-cd ..
+cd /Users/davidpieri/Fieldy
 python -c "import tensorflow as tf, tensorflow_hub as hub; print(tf.__version__, hub.__version__)"
 python -m pytest python/tests -q
 printf '%s\n' '{"id":"1","method":"ping"}' | python python/main.py
+npm start
 ```
 
-Electron must spawn `.venv/bin/python` with `PYTHONUNBUFFERED=1`. From the repo root: `npm start` (or `cd electron && npm start`). First time: `cd electron && npm install`.
+Electron must spawn `.venv/bin/python` with `PYTHONUNBUFFERED=1`. Root `npm start` runs `npm start --prefix electron`.
 
-Reset onboarding: quit the app, delete `~/.Fieldy/pointer.json`, relaunch.
+Reset onboarding: quit the app, delete `~/.Fieldy/pointer.json` (legacy `~/.soundly-lite/pointer.json` is still read if the new pointer is missing).
 
 ## Directory layout
 
@@ -52,18 +59,16 @@ Reset onboarding: quit the app, delete `~/.Fieldy/pointer.json`, relaunch.
 Fieldy/
 ├── electron/                 # Desktop shell (main, preload, renderer)
 ├── python/                   # Automation + classifier
-│   └── core/                 # config, preprocess, classifier, mapper, …
+│   └── core/                 # config, preprocess, classifier, mapper, playback, …
 ├── config/                   # yamnet_class_map.csv, audioset_ontology.json, schema
-├── data/                     # Default library root (gitignored audio)
+├── data/                     # Optional library root (gitignored audio)
 └── .cursor/rules/
 ```
 
-Onboarding asks only for **library root**. Folders are AudioSet class names created on demand, plus **`Mixed`**.
+## IPC
 
-## IPC protocol
+See `.cursor/rules/03-ipc-bridge.mdc`. Python is long-lived. Renderer never mutates the filesystem.
 
-See `.cursor/rules/03-ipc-bridge.mdc`. Python is long-lived; Electron main relays NDJSON. Renderer never mutates the filesystem.
+## Not in the app yet
 
-## Implementation phases
-
-Follow `docs/IMPLEMENTATION.md`. Phases 1–11 are done. Next work is using the app on real files, not another numbered phase.
+Auto-slicing long takes into shorter files; YAMNet score-o-gram UI; non-WAV formats; packaged installer.

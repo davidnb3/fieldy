@@ -1,20 +1,21 @@
 ---
-description: Phase 10 library explorer — select folders, list files, move/rename/delete via Python
+description: Library explorer — folders, files, move/rename/delete, reclassify, play
 globs: electron/renderer/**
 alwaysApply: false
 ---
 
-# Feature: library explorer (Phase 10)
+# Feature: library explorer
 
 Sidebar `#folder-list`: `Mixed` first, then existing legal class folders from `list_library`. Never invent a folder picker of all 521 AudioSet names.
 
-Main `#file-list`: WAV name, duration, tags. Empty folder shows a short message.
+Main `#file-list`: ▶, WAV name, duration, tags. Empty folder shows a short message.
 
 Mutations go through `window.fieldy.call` only:
 
-- Move: dropdown of **other folders that already exist**. No free-text dest (blocks non-AudioSet names). Does not re-run YAMNet.
-- Rename: in-app name dialog (not `window.prompt`, which Electron does not show) → `rename_file`. Extension is kept if omitted.
+- Move: dropdown of **other folders that already exist**. Style the `<select>` with light `color` on the dark background. No free-text dest. Does not re-run YAMNet.
+- Rename: `#modal` name dialog (not `window.prompt`) → `rename_file`. Extension kept if omitted.
 - Delete: confirm → `delete_file`.
-- Reclassify: folder button `#reclassify-folder` and per-row **Reclassify** call `classify_and_ingest` with existing library paths. Retag in place if the dest folder is unchanged; otherwise move the original (no extra copy).
+- Reclassify: `#reclassify-folder` and per-row **Reclassify** → `classify_and_ingest` with existing library paths. Retag in place if dest is unchanged; otherwise move the original (no extra copy). Clear ingest busy **before** redrawing the list.
+- Playback: ▶ → `#player`. See `.cursor/rules/11-playback.mdc`.
 
-Keep the selected folder across `list_library` refresh when it still exists. Show errors in `#library-error`. No Chromium playback in MVP (32-bit float WAV often will not play).
+Keep the selected folder across `list_library` refresh when it still exists. Show errors in `#library-error`.

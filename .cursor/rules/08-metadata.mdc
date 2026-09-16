@@ -26,4 +26,4 @@ alwaysApply: false
 
 ## Tests
 
-`python/tests/test_metadata.py`: round-trip names including commas (`Trickle, dribble`); replace tags; empty read; PCM checksum unchanged.
+`python/tests/test_metadata.py`: round-trip names including commas (`Trickle, dribble`); replace tags; empty read; PCM checksum unchanged; read legacy `SoundlyLite` TXXX.

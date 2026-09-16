@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld("fieldy", {
   pathForFile: (file) => webUtils.getPathForFile(file),
   chooseLibraryRoot: () => ipcRenderer.invoke("pick-library-root"),
   statPath: (target) => ipcRenderer.invoke("stat-path", target),
+  readPlaybackFile: (target) => ipcRenderer.invoke("read-playback-file", target),
 });

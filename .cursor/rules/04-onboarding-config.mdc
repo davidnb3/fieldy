@@ -12,7 +12,7 @@ Do **not** ask for allowed folder names or a custom tag vocabulary. Folders and 
 
 ## Persistence
 
-Save merged config (defaults + `libraryRoot`) to `{libraryRoot}/.Fieldy.json`. Validate against `config/config.schema.json`.
+Save merged config (defaults + `libraryRoot`) to `{libraryRoot}/.Fieldy.json`. Validate against `config/config.schema.json`. `ConfigStore` still **loads** a leftover `{libraryRoot}/.soundly-lite.json` and `~/.soundly-lite/pointer.json` if the Fieldy files are missing. New saves always write Fieldy paths.
 
 On `save_config`, create:
 

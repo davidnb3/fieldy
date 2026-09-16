@@ -4,7 +4,7 @@
 
 1. On first launch the user only chooses a **library root**. Folders are **YAMNet / AudioSet class names**, created when the first file lands in that class. `Mixed` is the only extra bucket.
 2. Drop Zoom H6 (and other) audio → Python classifies with YAMNet on a **temporary in-memory 16 kHz mono** view (full duration, native patch framing) → tags the **original** with matching class names → moves the original into `{class}` or `Mixed`.
-3. Electron shows that library; manual drag/rename/delete mutate the real filesystem immediately.
+3. Electron shows that library; move/rename/delete/reclassify go through Python; ▶ plays a temp 16-bit preview with a peak waveform (original 32-bit float stays on disk).
 
 ## Process topology
 
@@ -49,9 +49,9 @@ Fieldy uses the same mechanism:
 
 1. Resample the original to 16 kHz mono in RAM (or in ~60 s chunks with 0.96 s overlap if the 16 kHz buffer would be huge).
 2. Run YAMNet on every chunk; concatenate frame scores so the whole file is represented.
-3. Clip-level scores = mean over frames.
-4. Destination from clip-level `decide_destination`; tags = every class ≥ threshold.
-5. If **unrelated** classes dominate different time regions (water then speech) → `Mixed`. Related labels (Pour vs Water) do not.
+3. Clip-level scores = mean over **non-Silence** frames for the folder; tags use max(full-file mean, foreground mean).
+4. Destination from `decide_destination` (top foreground class); tags = every class ≥ threshold (Silence included).
+5. If **unrelated** classes dominate different non-Silence time regions (water then speech) → `Mixed`. Related labels (Pour vs Water) do not.
 
 There is **no** `Long Samples` bypass and **no** “skip YAMNet after 60 seconds.” The old phrase “no full-file YAMNet” was a mistaken shortcut; the model is designed to run on the full timeline as patches.
 
@@ -84,6 +84,7 @@ Tags are written even when destination is `Mixed`.
 | --- | --- | --- |
 | On disk after ingest | Yes (moved, tagged header only) | No |
 | YAMNet input | Never | Yes, RAM (or RAM chunks) |
+| Chromium playback | Never (32-bit float often fails) | No — player uses a **temp PCM_16** copy of the original SR/channels, not the 16 kHz analysis buffer |
 
 ## Config shape
 
@@ -96,3 +97,7 @@ Tags are written even when destination is `Mixed`.
 ```
 
 `analyzeChunkSeconds` only bounds 16 kHz RAM while stitching YAMNet frames. It is not a classification skip.
+
+Library config lives at `{libraryRoot}/.Fieldy.json`. The home pointer is `~/.Fieldy/pointer.json`. Legacy Soundly Lite filenames are still loaded if present.
+
+Playback is `prepare_playback` (peaks + temp 16-bit path). The YAMNet Hub tutorial’s three-panel matplotlib figure is not used in the UI.

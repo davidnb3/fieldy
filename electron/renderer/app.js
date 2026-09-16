@@ -8,6 +8,11 @@ const onboardingError = document.getElementById("onboarding-error");
 const saveButton = document.getElementById("save-config");
 
 const reclassifyFolder = document.getElementById("reclassify-folder");
+const player = document.getElementById("player");
+const playerToggle = document.getElementById("player-toggle");
+const playerName = document.getElementById("player-name");
+const playerTime = document.getElementById("player-time");
+const playerWave = document.getElementById("player-wave");
 const modal = document.getElementById("modal");
 const modalTitle = document.getElementById("modal-title");
 const modalInput = document.getElementById("modal-input");
@@ -18,6 +23,29 @@ let libraryBusy = false;
 let libraryTree = null;
 let selectedFolder = "Mixed";
 const jobRows = new Map();
+const playback = {
+  audio: new Audio(),
+  path: "",
+  name: "",
+  peaksMin: [],
+  peaksMax: [],
+  blobUrl: "",
+  loading: false,
+};
+playback.audio.addEventListener("timeupdate", drawPlayhead);
+playback.audio.addEventListener("ended", () => {
+  playerToggle.textContent = "Play";
+  drawWaveform();
+  renderFiles();
+});
+playback.audio.addEventListener("play", () => {
+  playerToggle.textContent = "Pause";
+  renderFiles();
+});
+playback.audio.addEventListener("pause", () => {
+  playerToggle.textContent = "Play";
+  renderFiles();
+});
 
 function showOnboardingError(message) {
   onboardingError.textContent = message;
@@ -117,6 +145,124 @@ function formatDuration(seconds) {
   return `${Number(seconds).toFixed(1)}s`;
 }
 
+function formatClock(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+  const total = Math.floor(seconds);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function bytesToWavBlob(data) {
+  if (data instanceof ArrayBuffer) return new Blob([data], { type: "audio/wav" });
+  if (ArrayBuffer.isView(data)) return new Blob([data], { type: "audio/wav" });
+  if (data && data.type === "Buffer" && Array.isArray(data.data)) {
+    return new Blob([new Uint8Array(data.data)], { type: "audio/wav" });
+  }
+  return new Blob([data], { type: "audio/wav" });
+}
+
+function drawWaveform() {
+  if (!playerWave || player.classList.contains("hidden")) return;
+  const cssWidth = playerWave.clientWidth || 600;
+  const cssHeight = 72;
+  const ratio = window.devicePixelRatio || 1;
+  playerWave.width = Math.floor(cssWidth * ratio);
+  playerWave.height = Math.floor(cssHeight * ratio);
+  const ctx = playerWave.getContext("2d");
+  if (!ctx) return;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
+  ctx.fillStyle = "#121316";
+  ctx.fillRect(0, 0, cssWidth, cssHeight);
+  const mins = playback.peaksMin;
+  const maxs = playback.peaksMax;
+  const n = Math.min(mins.length, maxs.length);
+  if (!n) return;
+  const mid = cssHeight / 2;
+  ctx.fillStyle = "#ff8a3d";
+  for (let i = 0; i < n; i += 1) {
+    const x = (i / n) * cssWidth;
+    const w = Math.max(1, cssWidth / n);
+    const lo = mid - maxs[i] * (mid - 4);
+    const hi = mid - mins[i] * (mid - 4);
+    ctx.fillRect(x, Math.min(lo, hi), w, Math.max(1, Math.abs(hi - lo)));
+  }
+  const dur = playback.audio.duration;
+  if (dur && Number.isFinite(dur) && dur > 0) {
+    const x = (playback.audio.currentTime / dur) * cssWidth;
+    ctx.strokeStyle = "#e8eaed";
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, cssHeight);
+    ctx.stroke();
+  }
+  if (playerTime) {
+    const now = playback.audio.currentTime || 0;
+    const total = Number.isFinite(dur) ? dur : 0;
+    playerTime.textContent = `${formatClock(now)} / ${formatClock(total)}`;
+  }
+}
+
+function drawPlayhead() {
+  drawWaveform();
+}
+
+async function togglePlayback(file) {
+  if (playback.loading) return;
+  if (file.path === playback.path && playback.audio.src) {
+    if (playback.audio.paused) await playback.audio.play();
+    else playback.audio.pause();
+    return;
+  }
+  playback.loading = true;
+  player.classList.remove("hidden");
+  playerName.textContent = `Loading ${file.name}…`;
+  playerTime.textContent = "";
+  playerToggle.disabled = true;
+  renderFiles();
+  try {
+    const prepared = await window.fieldy.call("prepare_playback", { path: file.path });
+    const bytes = await window.fieldy.readPlaybackFile(prepared.previewPath);
+    if (playback.blobUrl) URL.revokeObjectURL(playback.blobUrl);
+    playback.blobUrl = URL.createObjectURL(bytesToWavBlob(bytes));
+    playback.path = file.path;
+    playback.name = file.name;
+    playback.peaksMin = prepared.peaksMin || [];
+    playback.peaksMax = prepared.peaksMax || [];
+    playback.audio.src = playback.blobUrl;
+    playerName.textContent = file.name;
+    playerToggle.disabled = false;
+    playerToggle.textContent = "Pause";
+    drawWaveform();
+    await playback.audio.play();
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+    playerName.textContent = file.name;
+  } finally {
+    playback.loading = false;
+    playerToggle.disabled = false;
+    renderFiles();
+  }
+}
+
+playerToggle.addEventListener("click", () => {
+  if (!playback.audio.src) return;
+  if (playback.audio.paused) playback.audio.play();
+  else playback.audio.pause();
+});
+
+playerWave.addEventListener("click", (event) => {
+  const dur = playback.audio.duration;
+  if (!dur || !Number.isFinite(dur)) return;
+  const rect = playerWave.getBoundingClientRect();
+  const ratio = (event.clientX - rect.left) / rect.width;
+  playback.audio.currentTime = Math.min(dur, Math.max(0, ratio * dur));
+  drawWaveform();
+});
+
+window.addEventListener("resize", () => drawWaveform());
+
 async function refresh() {
   showOnboardingError("");
   const cfg = await window.fieldy.call("get_config");
@@ -187,7 +333,15 @@ function renderFiles() {
 
   for (const file of files) {
     const row = document.createElement("div");
-    row.className = "file-row";
+    row.className = "file-row" + (file.path === playback.path ? " playing" : "");
+
+    const playBtn = document.createElement("button");
+    playBtn.type = "button";
+    playBtn.className = "play-btn";
+    playBtn.setAttribute("aria-label", `Play ${file.name}`);
+    playBtn.textContent = file.path === playback.path && !playback.audio.paused ? "⏸" : "▶";
+    playBtn.disabled = playback.loading;
+    playBtn.addEventListener("click", () => togglePlayback(file));
 
     const name = document.createElement("div");
     name.className = "file-name";
@@ -263,7 +417,7 @@ function renderFiles() {
     });
 
     actions.append(renameBtn, deleteBtn, reclassifyBtn);
-    row.append(name, duration, tags, actions);
+    row.append(playBtn, name, duration, tags, actions);
     list.appendChild(row);
   }
 }
