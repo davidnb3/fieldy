@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 import soundfile as sf
 
 from core.classifier import YamnetClassifier
@@ -58,6 +59,7 @@ def test_ingest_tags_and_moves_wav(tmp_path: Path):
     assert moved.is_file()
     assert not src.exists()
     assert read_tags(str(moved)) == ["Speech"]
+    assert job["score"] == pytest.approx(0.9)
     assert (library / "Mixed").is_dir()
     assert "analyze" in stages and "tag" in stages and "done" in stages
 
@@ -95,6 +97,22 @@ def test_ingest_collision_gets_unique_name(tmp_path: Path):
     )
     names = {Path(job["movedTo"]).name for job in jobs}
     assert names == {"clip.wav", "clip_1.wav"}
+
+
+def test_ingest_copy_keeps_source_untagged(tmp_path: Path):
+    library = tmp_path / "library"
+    store = ConfigStore(pointer_path=tmp_path / "pointer.json")
+    store.save({"libraryRoot": str(library), "ingestMode": "copy"})
+    src = tmp_path / "drop" / "take.wav"
+    src.parent.mkdir()
+    _write_wav(src)
+    jobs = ingest_paths([str(src)], store.get(), classifier=FakeSpeechClassifier())
+    dest = Path(jobs[0]["movedTo"])
+    assert src.is_file()
+    assert dest.is_file()
+    assert jobs[0]["copied"] is True
+    assert read_tags(str(src)) == []
+    assert read_tags(str(dest)) == ["Speech"]
 
 
 def test_reingest_library_file_moves_when_class_changes(tmp_path: Path):

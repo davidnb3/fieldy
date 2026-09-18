@@ -56,6 +56,8 @@ def test_save_creates_mixed_and_config_file(tmp_path: Path):
     cfg = store.get()
     assert cfg["libraryRoot"] == str(library)
     assert cfg["confidenceThreshold"] == 0.3
+    assert cfg["ingestMode"] == "move"
+    assert cfg["dropzoneOnLaunch"] is True
     assert "needsOnboarding" not in cfg
 
     reloaded = ConfigStore(pointer_path=pointer)

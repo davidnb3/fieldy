@@ -28,6 +28,27 @@ def move_into_folder(src: str, dest_dir: str) -> str:
     return str(dest)
 
 
+def copy_into_folder(src: str, dest_dir: str) -> str:
+    dest_dir_p = Path(dest_dir)
+    dest_dir_p.mkdir(parents=True, exist_ok=True)
+    dest = unique_dest(dest_dir_p, os.path.basename(src))
+    shutil.copy2(src, dest)
+    return str(dest)
+
+
+def relocate(src: str, dest_path: str) -> str:
+    """Move src to dest_path (unique name if that file already exists)."""
+    src_p = Path(src).expanduser().resolve()
+    dest = Path(dest_path).expanduser()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists() and dest.resolve() != src_p:
+        dest = unique_dest(dest.parent, dest.name)
+    if src_p == dest.resolve():
+        return str(src_p)
+    shutil.move(str(src_p), dest)
+    return str(dest)
+
+
 def rename_file(path: str, new_name: str) -> str:
     p = Path(path)
     dest = p.with_name(new_name)

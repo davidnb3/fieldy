@@ -1,12 +1,12 @@
 ---
-description: First-run library root only; folders come from YAMNet class names on ingest
+description: First-run library root and ingestMode; folders come from YAMNet class names on ingest
 globs: python/core/config.py,config/**,electron/renderer/**
 alwaysApply: false
 ---
 
 # Feature: onboarding (library root only)
 
-On first launch, block the library until the user sets **`libraryRoot`** (absolute directory).
+On first launch, block the library until the user sets **`libraryRoot`** (absolute directory) and **`ingestMode`** (move or copy).
 
 Do **not** ask for allowed folder names or a custom tag vocabulary. Folders and tags are YAMNet/AudioSet class names produced at ingest.
 
@@ -25,12 +25,12 @@ Do not pre-create 521 class folders. Class folders appear when the first file is
 ## Config fields
 
 - Required: `libraryRoot`
-- Optional defaults: `confidenceThreshold` 0.3, `analyzeChunkSeconds` 60 (16 kHz chunk size for RAM stitching, **not** a skip-YAMNet gate). `conflictDelta` may still appear in saved JSON but is unused.
+- Optional defaults: `confidenceThreshold` 0.3, `analyzeChunkSeconds` 60 (16 kHz chunk size for RAM stitching, **not** a skip-YAMNet gate), `ingestMode` `move` (`copy` leaves the dropped file in place and tags only the library copy), `dropzoneOnLaunch` true. `conflictDelta` may still appear in saved JSON but is unused.
 
 No `folders[]`, no `allowedTags[]`, no `yamnetToFolderMap`, no `longFileSeconds` bypass.
 
 ## UI
 
-`#onboarding` visible when `get_config.needsOnboarding`. Native **Browse…** (`dialog.showOpenDialog`, directory) plus Save. `#library` hidden until save succeeds.
+`#onboarding` visible when `get_config.needsOnboarding`. Copy links **AudioSet class** to `https://research.google.com/audioset/dataset/index.html` (system browser). Examples: Siren, Animal, Speech. Do not mention Mixed on this screen. “The app never creates all AudioSet folders up front.” Native **Browse…** plus **When dropping files** (`ingestMode` move/copy) plus Save. `#library` hidden until save succeeds. After onboarding, **Settings** (`#dialog-settings`) can change library root, threshold, ingestMode, and dropzoneOnLaunch.
 
 To force onboarding again: quit the app, delete `~/.Fieldy/pointer.json`. The old library folder can stay; delete it only if you want a clean disk. Restart Electron so Python reloads config from disk.

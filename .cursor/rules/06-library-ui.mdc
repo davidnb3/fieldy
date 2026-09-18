@@ -16,9 +16,9 @@ Basic library explorer:
 
 - **List:** `list_library` → `Mixed` first, then existing legal class folders only (never all 521 empty names).
 - **Move:** `move_file {src, destFolder}`. Path must be under `libraryRoot`. `destFolder` must be `Mixed` or an AudioSet class. Does not re-run YAMNet.
-- **Rename:** `rename_file {path, newName}` basename only; if there is no extension, the original suffix is kept. UI: `#modal`, not `window.prompt`.
-- **Delete:** `delete_file {path}` unlinks a file inside the library only.
-- **Reclassify:** `classify_and_ingest` with library file paths.
+- **Rename:** `rename_file {path, newName}` basename only; if there is no extension, the original suffix is kept. UI: shared `#dialog` (`openDialog` / `askText`), not `window.prompt`.
+- **Delete:** `delete_file {path}` unlinks a file inside the library only. UI: `#dialog` confirm with danger (red) OK button, not `window.confirm`.
+- **Reclassify:** `classify_and_ingest` with library file paths. UI: folder **Re-run YAMNet** or context-menu **Reclassify** via `#dialog` confirm, not `window.confirm`. No per-row Reclassify button.
 - **Play:** `prepare_playback` + `readPlaybackFile` — see `.cursor/rules/11-playback.mdc`.
 
 After each mutation, the UI should `list_library` again. Disk is source of truth.
@@ -33,4 +33,4 @@ Renderer: `.cursor/rules/10-library-explorer.mdc`. Move destinations are existin
 
 ## Look
 
-Dark panel UI: background `#1a1b1e`, accent `#ff8a3d`, dashed drop zone. No extra frameworks in MVP.
+Dark panel UI: background `#1a1b1e`, accent `#ff8a3d`, danger `#e5534b` for delete. `#app-bar` + shared `#dialog` for every modal. Dashed drop zone (closable). No extra frameworks in MVP.

@@ -30,11 +30,17 @@ alwaysApply: false
 | get_config | {} | config or {needsOnboarding:true} |
 | save_config | {libraryRoot, thresholds…} | {ok:true} |
 | classify_and_ingest | {paths: string[]} | {jobs: JobResult[]} |
-| list_library | {} | {libraryRoot, folders:[{name, files:[{name,path,tags,duration}]}]} |
+| list_library | {} | {libraryRoot, folders, recentlyAdded, favorites, collections} |
 | move_file | {src, destFolder} | {path} — src must be inside libraryRoot; destFolder is Mixed or an AudioSet class |
 | rename_file | {path, newName} | {path} — basename only; extension kept if omitted |
 | delete_file | {path} | {ok:true} — file only, must be inside libraryRoot |
+| set_favorite | {path, favorite} | {path, favorite} — persist per libraryRoot; not a disk folder |
+| create_collection | {name} | {id, name} — virtual list, no mkdir |
+| add_to_collection | {id, path} | {id, path} — path must be a library file |
 | prepare_playback | {path} | {previewPath, duration, peaksMin, peaksMax, …} — 16-bit temp WAV + waveform peaks; original unchanged |
+| history_state | {} | {canUndo, canRedo} — session stack in the Python process |
+| undo | {} | {canUndo, canRedo} |
+| redo | {} | {canUndo, canRedo} |
 
 `destFolder` must be `Mixed` or a sanitized AudioSet class name.
 
@@ -43,13 +49,13 @@ alwaysApply: false
 - `ipcMain.handle("python-call", (e, method, params) => pythonCall(method, params))`
 - Promise map keyed by `id`. Bad stdout lines are logged, not fatal.
 - Events: `webContents.send("python-event", msg)`
-- preload: `window.fieldy.call`, `onEvent`, `pathForFile`, `statPath`, `chooseLibraryRoot`, `readPlaybackFile`
+- preload: `window.fieldy.call`, `onEvent`, `pathForFile`, `statPath`, `chooseLibraryRoot`, `readPlaybackFile`, `startLibraryDrag`, `showInFinder`, `openExternal`
 - Spawn `.venv/bin/python` (`PYTHONUNBUFFERED=1`, `PYTHONPATH=python`). Missing venv → error dialog.
 - If Python exits, reject in-flight promises and respawn unless the app is quitting.
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
 
 ## Security
 
-Do not enable `nodeIntegration`. Validate paths in Python. Ingest moves into `libraryRoot` only. `read-playback-file` is restricted to `fieldy-play-*.wav` under the OS temp directory.
+Do not enable `nodeIntegration`. Validate paths in Python. Ingest moves into `libraryRoot` only. `read-playback-file` is restricted to `fieldy-play-*.wav` under the OS temp directory. `start-library-drag` and `show-in-finder` only accept existing `.wav`/`.wave` files inside the pointer `libraryRoot` (originals, not playback temps). `open-external` only accepts `https://` URLs.
 
 Root `package.json` `npm start` → `electron/`. Move-to `<select>` must set `color` (native select defaults to black on the dark UI).

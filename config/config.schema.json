@@ -19,6 +19,16 @@
       "minimum": 5,
       "default": 60,
       "description": "Max seconds of 16 kHz mono held per YAMNet call when stitching long files. Not a skip-inference gate."
+    },
+    "ingestMode": {
+      "type": "string",
+      "enum": ["move", "copy"],
+      "default": "move",
+      "description": "move relocates dropped files into the library. copy leaves the original in place and tags only the library file."
+    },
+    "dropzoneOnLaunch": {
+      "type": "boolean",
+      "default": true
     }
   }
 }

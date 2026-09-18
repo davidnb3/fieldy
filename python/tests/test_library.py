@@ -42,6 +42,9 @@ def test_list_library_always_has_mixed_and_existing_class_folders(tmp_path: Path
     assert speech_files[0]["name"] == "a.wav"
     assert speech_files[0]["path"].endswith("a.wav")
     assert speech_files[0]["duration"] > 0
+    assert tree["recentlyAdded"] == []
+    assert tree["favorites"] == []
+    assert tree["collections"] == []
 
 
 def test_handlers_move_rename_delete(tmp_path: Path):

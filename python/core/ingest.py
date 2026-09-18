@@ -9,8 +9,9 @@ from typing import Any
 from core.analyze import classify_path
 from core.classifier import YamnetClassifier
 from core.config import DEFAULTS, assert_legal_destination
-from core.fs_ops import move_into_folder
-from core.metadata import write_tags
+from core.fs_ops import copy_into_folder, move_into_folder
+from core.metadata import read_score, read_tags, write_tags
+from core.recent import is_under_library, record_new_ingest
 
 WAV_SUFFIXES = {".wav", ".wave"}
 ProgressFn = Callable[[dict[str, Any]], None]
@@ -73,8 +74,10 @@ def ingest_paths(
                 chunk_seconds=chunk_seconds,
                 classifier=model,
                 on_progress=on_progress,
+                config=config,
             )
         )
+    record_new_ingest(library_root, jobs)
     return jobs
 
 
@@ -86,6 +89,7 @@ def _ingest_one(
     chunk_seconds: float,
     classifier: YamnetClassifier,
     on_progress: ProgressFn | None,
+    config: dict[str, Any],
 ) -> dict[str, Any]:
     original = str(path)
     try:
@@ -104,22 +108,40 @@ def _ingest_one(
         )
         dest = result["destination"]
         tags = list(result["tags"])
+        score = result.get("score")
         assert_legal_destination(dest)
-        _progress(on_progress, original, "tag")
-        write_tags(str(resolved), tags)
+        was_library = is_under_library(library_root, resolved)
+        copy_mode = str(config.get("ingestMode") or "move") == "copy" and not was_library
+        previous_tags = read_tags(str(resolved))
+        previous_score = read_score(str(resolved))
         dest_dir = library_root / dest
-        if resolved.parent.resolve() == dest_dir.resolve():
-            moved_to = str(resolved)
+        copied = False
+        if copy_mode:
+            _progress(on_progress, original, "tag")
+            moved_to = copy_into_folder(str(resolved), str(dest_dir))
+            write_tags(moved_to, tags, score=score)
+            copied = True
         else:
-            _progress(on_progress, original, "move")
-            moved_to = move_into_folder(str(resolved), str(dest_dir))
+            _progress(on_progress, original, "tag")
+            write_tags(str(resolved), tags, score=score)
+            if resolved.parent.resolve() == dest_dir.resolve():
+                moved_to = str(resolved)
+            else:
+                _progress(on_progress, original, "move")
+                moved_to = move_into_folder(str(resolved), str(dest_dir))
         _progress(on_progress, original, "done", destination=dest, movedTo=moved_to)
         return {
             "path": original,
             "ok": True,
             "destination": dest,
             "tags": tags,
+            "score": score,
             "movedTo": moved_to,
+            "copied": copied,
+            "wasLibrary": was_library,
+            "previousPath": str(resolved),
+            "previousTags": previous_tags,
+            "previousScore": previous_score,
             "frames": result["frames"],
             "top": result["top"],
         }

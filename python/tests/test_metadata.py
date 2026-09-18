@@ -6,9 +6,10 @@ import hashlib
 from pathlib import Path
 
 import numpy as np
+import pytest
 import soundfile as sf
 
-from core.metadata import read_tags, write_tags
+from core.metadata import read_score, read_tags, write_tags
 from core.preprocess import audio_info
 
 
@@ -44,6 +45,17 @@ def test_write_tags_round_trip_keeps_float32_pcm(tmp_path: Path):
     assert info_after["frames"] == info_before["frames"]
     assert info_after["shape"] == info_before["shape"]
     assert read_tags(str(wav)) == tags
+
+
+def test_write_tags_stores_score(tmp_path: Path):
+    wav = tmp_path / "h6.wav"
+    _write_float32_stereo_48k(wav)
+    before, _info = _pcm_fingerprint(wav)
+    write_tags(str(wav), ["Speech"], score=0.91)
+    after, _info_after = _pcm_fingerprint(wav)
+    assert after == before
+    assert read_tags(str(wav)) == ["Speech"]
+    assert read_score(str(wav)) == pytest.approx(0.91, abs=0.0001)
 
 
 def test_write_tags_replaces_previous_fieldy_tags(tmp_path: Path):

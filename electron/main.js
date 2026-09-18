@@ -2,7 +2,7 @@
  * Electron main: BrowserWindow + long-lived Python NDJSON child.
  * The renderer never talks to Python and never uses Node fs.
  */
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } = require("electron");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -103,6 +103,63 @@ function spawnPython() {
   });
 }
 
+const dragIcon = nativeImage.createFromPath(path.join(__dirname, "drag-icon.png"));
+
+function readPointerLibraryRoot() {
+  const candidates = [
+    path.join(os.homedir(), ".Fieldy", "pointer.json"),
+    path.join(os.homedir(), ".soundly-lite", "pointer.json"),
+  ];
+  for (const pointer of candidates) {
+    try {
+      if (!fs.existsSync(pointer)) continue;
+      const data = JSON.parse(fs.readFileSync(pointer, "utf8"));
+      const root = data && data.libraryRoot;
+      if (typeof root === "string" && root.trim()) return path.resolve(root);
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+function isPathInsideRoot(filePath, root) {
+  let resolved;
+  let base;
+  try {
+    resolved = fs.realpathSync(path.resolve(filePath));
+    base = fs.realpathSync(path.resolve(root));
+  } catch {
+    return false;
+  }
+  return resolved === base || resolved.startsWith(base + path.sep);
+}
+
+function libraryFilesForDrag(rawPaths) {
+  const root = readPointerLibraryRoot();
+  if (!root || !Array.isArray(rawPaths)) return [];
+  const files = [];
+  const seen = new Set();
+  for (const raw of rawPaths) {
+    if (typeof raw !== "string" || !raw) continue;
+    const resolved = path.resolve(raw);
+    if (seen.has(resolved)) continue;
+    let st;
+    try {
+      st = fs.statSync(resolved);
+    } catch {
+      continue;
+    }
+    if (!st.isFile()) continue;
+    const ext = path.extname(resolved).toLowerCase();
+    if (ext !== ".wav" && ext !== ".wave") continue;
+    if (!isPathInsideRoot(resolved, root)) continue;
+    seen.add(resolved);
+    files.push(resolved);
+  }
+  return files;
+}
+
 function pythonCall(method, params = {}) {
   if (!py || !py.stdin || !py.stdin.writable) {
     return Promise.reject(new Error("Python backend is not running"));
@@ -130,6 +187,20 @@ function createWindow() {
     },
   });
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
+  const openHttps = (url) => {
+    if (typeof url === "string" && url.startsWith("https://")) {
+      shell.openExternal(url);
+    }
+  };
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    openHttps(url);
+    return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (event, url) => {
+    if (url === win.webContents.getURL()) return;
+    event.preventDefault();
+    openHttps(url);
+  });
 }
 
 app.whenReady().then(() => {
@@ -162,6 +233,33 @@ app.whenReady().then(() => {
       throw new Error("not a Fieldy playback file");
     }
     return fs.readFileSync(resolved);
+  });
+  ipcMain.on("start-library-drag", (event, paths) => {
+    const files = libraryFilesForDrag(paths);
+    if (!files.length) return;
+    const icon = dragIcon.isEmpty()
+      ? nativeImage.createFromPath(path.join(__dirname, "drag-icon.png"))
+      : dragIcon;
+    try {
+      event.sender.startDrag({ files, icon });
+    } catch (err) {
+      console.error("[drag]", err);
+    }
+  });
+  ipcMain.handle("show-in-finder", (_e, target) => {
+    const files = libraryFilesForDrag([target]);
+    if (files.length !== 1) {
+      throw new Error("not a library WAV");
+    }
+    shell.showItemInFolder(files[0]);
+    return { ok: true };
+  });
+  ipcMain.handle("open-external", async (_e, url) => {
+    if (typeof url !== "string" || !url.startsWith("https://")) {
+      throw new Error("https URL required");
+    }
+    await shell.openExternal(url);
+    return { ok: true };
   });
   createWindow();
 });

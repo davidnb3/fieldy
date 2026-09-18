@@ -12,4 +12,7 @@ contextBridge.exposeInMainWorld("fieldy", {
   chooseLibraryRoot: () => ipcRenderer.invoke("pick-library-root"),
   statPath: (target) => ipcRenderer.invoke("stat-path", target),
   readPlaybackFile: (target) => ipcRenderer.invoke("read-playback-file", target),
+  startLibraryDrag: (paths) => ipcRenderer.send("start-library-drag", paths),
+  showInFinder: (target) => ipcRenderer.invoke("show-in-finder", target),
+  openExternal: (url) => ipcRenderer.invoke("open-external", url),
 });

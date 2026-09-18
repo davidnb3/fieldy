@@ -6,16 +6,26 @@ alwaysApply: false
 
 # Feature: library explorer
 
-Sidebar `#folder-list`: `Mixed` first, then existing legal class folders from `list_library`. Never invent a folder picker of all 521 AudioSet names.
+Sidebar **Libraries**: Recently added, Starred, then user collections, then **New collection**. Then **Folders**: `Mixed` first and existing legal class folders from `list_library`. Recently added, Starred, and collections are views (not disk folders and not AudioSet classes). Never invent a folder picker of all 521 AudioSet names. Do not mkdir those views.
 
-Main `#file-list`: ▶, WAV name, duration, tags. Empty folder shows a short message.
+Folder tools (search / sort / filter) apply to `#folder-list` only. File tools apply to the open folder, Recently added, Starred, and collections.
+
+Main `#file-list`: ▶, star, WAV name, duration, tags. Empty states for folder / Recently added / Starred / collection. No matches: “No files match.” File rows share the same column widths so duration, tags, and actions line up.
+
+`list_library` returns `recentlyAdded`, `favorites` (Starred UI), and `collections` (`{id,name,files}`). Recently added: new drops only, cap 50. Starred: `{libraryRoot}/.Fieldy-favorites.json`. Collections: `{libraryRoot}/.Fieldy-collections.json`. Move/rename remaps paths; missing files are pruned.
 
 Mutations go through `window.fieldy.call` only:
 
-- Move: dropdown of **other folders that already exist**. Style the `<select>` with light `color` on the dark background. No free-text dest. Does not re-run YAMNet.
-- Rename: `#modal` name dialog (not `window.prompt`) → `rename_file`. Extension kept if omitted.
-- Delete: confirm → `delete_file`.
-- Reclassify: `#reclassify-folder` and per-row **Reclassify** → `classify_and_ingest` with existing library paths. Retag in place if dest is unchanged; otherwise move the original (no extra copy). Clear ingest busy **before** redrawing the list.
-- Playback: ▶ → `#player`. See `.cursor/rules/11-playback.mdc`.
+- Move: dropdown of **other folders that already exist**, or drag onto a sidebar class folder (`move_file`). Libraries views are not move destinations. Drag onto a collection **adds** (`add_to_collection`) and does not move the file on disk.
+- Rename: shared `#dialog` (`askText`, not `window.prompt`) → `rename_file`.
+- Delete: `#dialog` confirm with danger colors (`askConfirm`, not `window.confirm`) → `delete_file`.
+- Reclassify: `#reclassify-folder` (**Re-run YAMNet**) and right-click **Reclassify** → `#dialog` confirm, then `classify_and_ingest`. No per-row Reclassify button. Clear ingest busy **before** redrawing the list.
+- New collection: same `#dialog` prompt.
+- Star: button next to ▶ → `set_favorite`.
+- Collections: `create_collection` / `add_to_collection`. Right-click **Add to collection** (existing or New collection…).
+- Playback: ▶ → `#player`. Right-click menu: Show in Finder, star, rename, delete, reclassify, Add to collection, Move to.
+- Drag out: grip/filename → `startLibraryDrag`.
 
-Keep the selected folder across `list_library` refresh when it still exists. Show errors in `#library-error`.
+Keep the selected folder, Recently added, Starred, or collection across `list_library` refresh when it still exists. Show errors in `#library-error`.
+
+`#app-bar` is the library chrome: logo placeholder, Show/Hide drop zone, Undo/Redo (`undo` / `redo` IPC), Settings (`#dialog-settings`: library root, `ingestMode` move/copy, threshold, dropzone on launch). Undo covers ingest (move restores the source file; copy removes the library copy), move, rename, delete (stash under `.Fieldy-undo`), star, and collections. Cmd/Ctrl+Z and Shift+Z / Y.

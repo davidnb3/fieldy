@@ -2,8 +2,22 @@ const onboarding = document.getElementById("onboarding");
 const library = document.getElementById("library");
 const dropzone = document.getElementById("dropzone");
 const dropzoneTitle = document.getElementById("dropzone-title");
+const closeDropzone = document.getElementById("close-dropzone");
+const toggleDropzone = document.getElementById("toggle-dropzone");
+const openSettings = document.getElementById("open-settings");
+const undoBtn = document.getElementById("undo");
+const redoBtn = document.getElementById("redo");
+const ingestPanel = document.getElementById("ingest-panel");
 const ingestJobs = document.getElementById("ingest-jobs");
+const closeIngest = document.getElementById("close-ingest");
+const folderSearch = document.getElementById("folder-search");
+const folderSort = document.getElementById("folder-sort");
+const folderFilter = document.getElementById("folder-filter");
+const fileSearch = document.getElementById("file-search");
+const fileSort = document.getElementById("file-sort");
+const fileFilter = document.getElementById("file-filter");
 const libraryRootInput = document.getElementById("library-root");
+const onboardingIngestMode = document.getElementById("onboarding-ingest-mode");
 const onboardingError = document.getElementById("onboarding-error");
 const saveButton = document.getElementById("save-config");
 
@@ -13,15 +27,36 @@ const playerToggle = document.getElementById("player-toggle");
 const playerName = document.getElementById("player-name");
 const playerTime = document.getElementById("player-time");
 const playerWave = document.getElementById("player-wave");
-const modal = document.getElementById("modal");
-const modalTitle = document.getElementById("modal-title");
-const modalInput = document.getElementById("modal-input");
-const modalCancel = document.getElementById("modal-cancel");
-const modalOk = document.getElementById("modal-ok");
+const dialog = document.getElementById("dialog");
+const dialogCard = dialog.querySelector(".dialog-card");
+const dialogTitle = document.getElementById("dialog-title");
+const dialogBody = document.getElementById("dialog-body");
+const dialogInput = document.getElementById("dialog-input");
+const dialogCancel = document.getElementById("dialog-cancel");
+const dialogOk = document.getElementById("dialog-ok");
+const dialogSettings = document.getElementById("dialog-settings");
+const settingsLibraryRoot = document.getElementById("settings-library-root");
+const settingsBrowse = document.getElementById("settings-browse");
+const settingsIngestMode = document.getElementById("settings-ingest-mode");
+const settingsThreshold = document.getElementById("settings-threshold");
+const settingsDropzoneOnLaunch = document.getElementById("settings-dropzone-on-launch");
+const dropzoneHint = document.getElementById("dropzone-hint");
+const RECENT_VIEW = "Recently added";
+const STARRED_VIEW = "Starred";
+const PINNED_VIEWS = new Set([RECENT_VIEW, STARRED_VIEW]);
+const COLLECTION_PREFIX = "collection:";
 let ingesting = false;
 let libraryBusy = false;
+let historyState = { canUndo: false, canRedo: false };
+let appConfig = null;
+let dropzonePrefApplied = false;
 let libraryTree = null;
 let selectedFolder = "Mixed";
+const selectedPaths = new Set();
+let selectionAnchor = null;
+let suppressFileClick = false;
+let draggingOut = false;
+let pendingDragPaths = [];
 const jobRows = new Map();
 const playback = {
   audio: new Audio(),
@@ -60,8 +95,16 @@ function isWavPath(filePath) {
   return /\.(wav|wave)$/i.test(filePath);
 }
 
+function showIngestPanel() {
+  ingestPanel.hidden = false;
+}
+
+function hideIngestPanel() {
+  ingestPanel.hidden = true;
+}
+
 function ensureJobRow(filePath) {
-  ingestJobs.hidden = false;
+  showIngestPanel();
   let row = jobRows.get(filePath);
   if (!row) {
     row = document.createElement("li");
@@ -94,43 +137,194 @@ async function collectIngestPaths(fileList) {
   return accepted;
 }
 
-function askRename(currentName) {
+let dialogClose = null;
+
+function closeDialog(result) {
+  if (!dialogClose) return;
+  const finish = dialogClose;
+  dialogClose = null;
+  finish(result);
+}
+
+function openDialog({
+  title,
+  body = "",
+  input = null,
+  selectStem = false,
+  okLabel = "OK",
+  cancelLabel = "Cancel",
+  showCancel = true,
+  tone = "accent",
+  settings = false,
+} = {}) {
+  closeDialog(null);
   return new Promise((resolve) => {
-    modalTitle.textContent = "Rename file";
-    modalInput.value = currentName;
-    modal.classList.remove("hidden");
-    let settled = false;
-    const finish = (value) => {
-      if (settled) return;
-      settled = true;
-      modalCancel.removeEventListener("click", onCancel);
-      modalOk.removeEventListener("click", onOk);
-      modalInput.removeEventListener("keydown", onKey);
-      modal.classList.add("hidden");
-      resolve(value);
+    const isPrompt = input !== null && input !== false;
+    dialogTitle.textContent = title || "";
+    dialogBody.textContent = body || "";
+    dialogBody.classList.toggle("hidden", !body);
+    dialogInput.classList.toggle("hidden", !isPrompt);
+    dialogSettings.classList.toggle("hidden", !settings);
+    dialogInput.value = isPrompt ? String(input || "") : "";
+    dialogCancel.textContent = cancelLabel;
+    dialogCancel.classList.toggle("hidden", !showCancel);
+    dialogOk.textContent = okLabel;
+    dialogOk.classList.toggle("tone-danger", tone === "danger");
+    dialogCard.classList.toggle("tone-danger", tone === "danger");
+    dialog.classList.remove("hidden");
+
+    const finish = (result) => {
+      dialogCancel.removeEventListener("click", onCancel);
+      dialogOk.removeEventListener("click", onOk);
+      dialog.removeEventListener("keydown", onKey);
+      dialog.removeEventListener("click", onBackdrop);
+      dialogCard.removeEventListener("click", stopCard);
+      dialog.classList.add("hidden");
+      dialogOk.classList.remove("tone-danger");
+      dialogCard.classList.remove("tone-danger");
+      dialogCancel.classList.remove("hidden");
+      dialogSettings.classList.add("hidden");
+      resolve(result);
     };
-    const onCancel = () => finish(null);
-    const onOk = () => finish(modalInput.value.trim());
+    dialogClose = finish;
+    const onCancel = () => closeDialog(isPrompt ? null : false);
+    const onOk = () => closeDialog(isPrompt ? dialogInput.value.trim() : true);
     const onKey = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        finish(null);
+        event.stopPropagation();
+        onCancel();
       }
       if (event.key === "Enter") {
+        if (event.target.closest("button") && event.target !== dialogOk) return;
         event.preventDefault();
-        finish(modalInput.value.trim());
+        event.stopPropagation();
+        onOk();
       }
     };
-    modalCancel.addEventListener("click", onCancel);
-    modalOk.addEventListener("click", onOk);
-    modalInput.addEventListener("keydown", onKey);
-    const dot = currentName.lastIndexOf(".");
-    const end = dot > 0 ? dot : currentName.length;
+    const stopCard = (event) => event.stopPropagation();
+    const onBackdrop = () => onCancel();
+    dialogCancel.addEventListener("click", onCancel);
+    dialogOk.addEventListener("click", onOk);
+    dialog.addEventListener("keydown", onKey);
+    dialogCard.addEventListener("click", stopCard);
+    dialog.addEventListener("click", onBackdrop);
     requestAnimationFrame(() => {
-      modalInput.focus();
-      modalInput.setSelectionRange(0, end);
+      if (isPrompt) {
+        dialogInput.focus();
+        if (selectStem) {
+          const value = String(input || "");
+          const dot = value.lastIndexOf(".");
+          const end = dot > 0 ? dot : value.length;
+          dialogInput.setSelectionRange(0, end);
+        } else {
+          dialogInput.select();
+        }
+      } else if (settings) {
+        settingsIngestMode.focus();
+      } else {
+        dialogOk.focus();
+      }
     });
   });
+}
+
+function askText({ title, okLabel, value, selectStem }) {
+  return openDialog({
+    title,
+    okLabel: okLabel || "OK",
+    input: value || "",
+    selectStem,
+  });
+}
+
+function askConfirm({ title, body, okLabel, tone }) {
+  return openDialog({
+    title,
+    body,
+    input: null,
+    okLabel: okLabel || "OK",
+    tone: tone || "accent",
+  });
+}
+
+function askRename(currentName) {
+  return askText({ title: "Rename file", okLabel: "Rename", value: currentName, selectStem: true });
+}
+
+function dropzoneOpen() {
+  return !dropzone.classList.contains("hidden");
+}
+
+function setDropzoneOpen(open) {
+  dropzone.classList.toggle("hidden", !open);
+  if (!open) dropzone.classList.remove("dragover");
+  toggleDropzone.textContent = open ? "Hide drop zone" : "Show drop zone";
+  toggleDropzone.setAttribute("aria-pressed", open ? "true" : "false");
+}
+
+function applyAppConfig(cfg, { applyDropzonePref = false } = {}) {
+  appConfig = cfg && !cfg.needsOnboarding ? cfg : null;
+  if (!appConfig) return;
+  const copy = appConfig.ingestMode === "copy";
+  if (dropzoneHint) {
+    dropzoneHint.textContent = copy
+      ? "WAV only. A tagged copy is added to the library; the original stays where it is. First classify loads YAMNet and can take a minute."
+      : "WAV only. Files are tagged and moved into your library. First classify loads YAMNet and can take a minute.";
+  }
+  if (applyDropzonePref) {
+    setDropzoneOpen(appConfig.dropzoneOnLaunch !== false);
+    dropzonePrefApplied = true;
+  }
+}
+
+async function openSettingsDialog() {
+  const cfg = appConfig || (await window.fieldy.call("get_config"));
+  if (!cfg || cfg.needsOnboarding) return;
+  settingsLibraryRoot.value = cfg.libraryRoot || "";
+  settingsIngestMode.value = cfg.ingestMode === "copy" ? "copy" : "move";
+  settingsThreshold.value = String(cfg.confidenceThreshold ?? 0.3);
+  settingsDropzoneOnLaunch.checked = cfg.dropzoneOnLaunch !== false;
+  const ok = await openDialog({
+    title: "Settings",
+    okLabel: "Save",
+    settings: true,
+  });
+  if (!ok) return;
+  const threshold = Number(settingsThreshold.value);
+  if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
+    showLibraryError("Threshold must be between 0 and 1.");
+    return;
+  }
+  const libraryRoot = settingsLibraryRoot.value.trim();
+  if (!libraryRoot) {
+    showLibraryError("Choose a library folder first.");
+    return;
+  }
+  try {
+    await window.fieldy.call("save_config", {
+      libraryRoot,
+      ingestMode: settingsIngestMode.value,
+      confidenceThreshold: threshold,
+      dropzoneOnLaunch: settingsDropzoneOnLaunch.checked,
+      ...(Number.isFinite(Number(cfg.analyzeChunkSeconds))
+        ? { analyzeChunkSeconds: Number(cfg.analyzeChunkSeconds) }
+        : {}),
+    });
+    applyAppConfig(
+      {
+        ...cfg,
+        libraryRoot,
+        ingestMode: settingsIngestMode.value,
+        confidenceThreshold: threshold,
+        dropzoneOnLaunch: settingsDropzoneOnLaunch.checked,
+      },
+      { applyDropzonePref: true }
+    );
+    await refresh();
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+  }
 }
 
 function showLibraryError(message) {
@@ -138,6 +332,41 @@ function showLibraryError(message) {
   if (!el) return;
   el.textContent = message || "";
   el.classList.toggle("hidden", !message);
+}
+
+function applyHistoryButtons() {
+  const locked = ingesting || libraryBusy;
+  if (undoBtn) undoBtn.disabled = locked || !historyState.canUndo;
+  if (redoBtn) redoBtn.disabled = locked || !historyState.canRedo;
+}
+
+async function syncHistory() {
+  try {
+    historyState = await window.fieldy.call("history_state");
+  } catch {
+    historyState = { canUndo: false, canRedo: false };
+  }
+  applyHistoryButtons();
+}
+
+async function runHistory(method) {
+  if (ingesting || libraryBusy) return;
+  libraryBusy = true;
+  applyHistoryButtons();
+  showLibraryError("");
+  try {
+    historyState = await window.fieldy.call(method);
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+  } finally {
+    libraryBusy = false;
+  }
+  try {
+    await refresh();
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+    applyHistoryButtons();
+  }
 }
 
 function formatDuration(seconds) {
@@ -273,67 +502,705 @@ async function refresh() {
   }
   onboarding.classList.add("hidden");
   library.classList.remove("hidden");
+  applyAppConfig(cfg, { applyDropzonePref: !dropzonePrefApplied });
   const tree = await window.fieldy.call("list_library");
   renderTree(tree);
+  await syncHistory();
+}
+
+function folderCount(folder) {
+  return folder.files?.length || 0;
+}
+
+function visibleFolders() {
+  const query = (folderSearch?.value || "").trim().toLowerCase();
+  const filter = folderFilter?.value || "all";
+  const sort = folderSort?.value || "mixed";
+  let folders = (libraryTree?.folders || []).slice();
+  if (query) {
+    folders = folders.filter((folder) => folder.name.toLowerCase().includes(query));
+  }
+  if (filter === "with-files") {
+    folders = folders.filter((folder) => folderCount(folder) > 0);
+  } else if (filter === "empty") {
+    folders = folders.filter((folder) => folderCount(folder) === 0);
+  }
+  folders.sort((a, b) => {
+    if (sort === "name-asc") return a.name.localeCompare(b.name);
+    if (sort === "name-desc") return b.name.localeCompare(a.name);
+    if (sort === "count-desc") return folderCount(b) - folderCount(a) || a.name.localeCompare(b.name);
+    if (sort === "count-asc") return folderCount(a) - folderCount(b) || a.name.localeCompare(b.name);
+    if (a.name === "Mixed") return -1;
+    if (b.name === "Mixed") return 1;
+    return a.name.localeCompare(b.name);
+  });
+  return folders;
+}
+
+function durationValue(file) {
+  const n = Number(file.duration);
+  return Number.isFinite(n) ? n : -1;
+}
+
+function fileMatchesQuery(file, query) {
+  if (!query) return true;
+  if ((file.name || "").toLowerCase().includes(query)) return true;
+  return (file.tags || []).some((tag) => String(tag).toLowerCase().includes(query));
+}
+
+function visibleFiles() {
+  const query = (fileSearch?.value || "").trim().toLowerCase();
+  const filter = fileFilter?.value || "all";
+  const sort = fileSort?.value || "default";
+  let files = selectedFiles().slice();
+  files = files.filter((file) => {
+    if (!fileMatchesQuery(file, query)) return false;
+    const tags = file.tags || [];
+    if (filter === "tagged") return tags.length > 0;
+    if (filter === "untagged") return tags.length === 0;
+    if (filter.startsWith("tag:")) return tags.includes(filter.slice(4));
+    return true;
+  });
+  if (sort === "name-asc") files.sort((a, b) => a.name.localeCompare(b.name));
+  else if (sort === "name-desc") files.sort((a, b) => b.name.localeCompare(a.name));
+  else if (sort === "dur-desc") files.sort((a, b) => durationValue(b) - durationValue(a) || a.name.localeCompare(b.name));
+  else if (sort === "dur-asc") files.sort((a, b) => durationValue(a) - durationValue(b) || a.name.localeCompare(b.name));
+  return files;
+}
+
+function syncFileTagFilter() {
+  if (!fileFilter) return;
+  const current = fileFilter.value;
+  const tags = new Set();
+  for (const file of selectedFiles()) {
+    for (const tag of file.tags || []) tags.add(tag);
+  }
+  fileFilter.replaceChildren();
+  const builtins = [
+    ["all", "All files"],
+    ["tagged", "Has tags"],
+    ["untagged", "No tags"],
+  ];
+  for (const [value, label] of builtins) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    fileFilter.appendChild(option);
+  }
+  for (const tag of [...tags].sort((a, b) => a.localeCompare(b))) {
+    const option = document.createElement("option");
+    option.value = `tag:${tag}`;
+    option.textContent = tag;
+    fileFilter.appendChild(option);
+  }
+  const allowed = new Set([...fileFilter.options].map((opt) => opt.value));
+  fileFilter.value = allowed.has(current) ? current : "all";
+}
+
+function appendFolderButton(parent, label, count, selected, droppable, extra = {}) {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "folder-item" + (selected ? " selected" : "");
+  const name = document.createElement("span");
+  name.className = "folder-name";
+  name.textContent = label;
+  const countEl = document.createElement("span");
+  countEl.className = "folder-count";
+  countEl.textContent = String(count);
+  el.append(name, countEl);
+  el.addEventListener("click", () => {
+    const next = extra.collectionId ? COLLECTION_PREFIX + extra.collectionId : label;
+    if (selectedFolder !== next) {
+      selectedPaths.clear();
+      selectionAnchor = null;
+    }
+    selectedFolder = next;
+    showLibraryError("");
+    renderTree(libraryTree);
+  });
+  if (extra.collectionId) {
+    el.dataset.collectionId = extra.collectionId;
+    bindCollectionDrop(el, extra.collectionId);
+  } else if (droppable) {
+    bindFolderDrop(el, label);
+  }
+  parent.appendChild(el);
+}
+
+function bindFolderDrop(el, destFolder) {
+  const clearHover = () => el.classList.remove("drop-target");
+  el.addEventListener("dragenter", (event) => {
+    event.preventDefault();
+    if (!canDropOnFolder(destFolder)) return;
+    el.classList.add("drop-target");
+  });
+  el.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    if (!canDropOnFolder(destFolder)) return;
+    el.classList.add("drop-target");
+  });
+  el.addEventListener("dragleave", (event) => {
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+    clearHover();
+  });
+  el.addEventListener("drop", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearHover();
+    dropOnFolder(destFolder, event);
+  });
+}
+
+function bindCollectionDrop(el, collectionId) {
+  const clearHover = () => el.classList.remove("drop-target");
+  el.addEventListener("dragenter", (event) => {
+    event.preventDefault();
+    if (!draggingOut && !pendingDragPaths.length) return;
+    el.classList.add("drop-target");
+  });
+  el.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    if (!draggingOut && !pendingDragPaths.length) return;
+    el.classList.add("drop-target");
+  });
+  el.addEventListener("dragleave", (event) => {
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+    clearHover();
+  });
+  el.addEventListener("drop", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearHover();
+    dropOnCollection(collectionId, event);
+  });
+}
+
+function canDropOnFolder(destFolder) {
+  if (!destFolder || PINNED_VIEWS.has(destFolder)) return false;
+  if (ingesting || libraryBusy) return false;
+  return draggingOut || pendingDragPaths.length > 0;
+}
+
+async function dropOnFolder(destFolder, event) {
+  if (PINNED_VIEWS.has(destFolder) || ingesting || libraryBusy) return;
+  let paths = pendingDragPaths.slice();
+  if (!paths.length && event?.dataTransfer?.files) {
+    paths = (await collectIngestPaths(event.dataTransfer.files)).filter(isUnderLibraryRoot);
+  }
+  paths = paths.filter((filePath) => currentFolderName({ path: filePath }) !== destFolder);
+  if (!paths.length) return;
+  await moveLibraryPaths(paths, destFolder);
+}
+
+async function dropOnCollection(collectionId, event) {
+  if (ingesting || libraryBusy || !collectionId) return;
+  let paths = pendingDragPaths.slice();
+  if (!paths.length && event?.dataTransfer?.files) {
+    paths = (await collectIngestPaths(event.dataTransfer.files)).filter(isUnderLibraryRoot);
+  }
+  if (!paths.length) return;
+  await addPathsToCollection(collectionId, paths);
+}
+
+function dropTargetFromPoint(x, y) {
+  for (const node of document.elementsFromPoint(x, y)) {
+    const item = node.closest?.(".folder-item");
+    if (!item) continue;
+    if (item.parentElement?.id === "folder-list") {
+      const name = item.querySelector(".folder-name")?.textContent;
+      if (name && !PINNED_VIEWS.has(name)) return { kind: "folder", el: item, name };
+    }
+    if (item.parentElement?.id === "collection-list") {
+      const id = item.dataset.collectionId;
+      if (id) return { kind: "collection", el: item, id };
+    }
+  }
+  return null;
+}
+
+function highlightFolderDropTarget(event) {
+  document.querySelectorAll(".folder-item.drop-target").forEach((item) => {
+    item.classList.remove("drop-target");
+  });
+  const target = dropTargetFromPoint(event.clientX, event.clientY);
+  if (!target) return;
+  if (target.kind === "folder" && canDropOnFolder(target.name)) {
+    target.el.classList.add("drop-target");
+  }
+  if (target.kind === "collection" && (draggingOut || pendingDragPaths.length)) {
+    target.el.classList.add("drop-target");
+  }
+}
+
+async function addPathsToCollection(collectionId, paths) {
+  if (libraryBusy || ingesting || !paths.length || !collectionId) return;
+  libraryBusy = true;
+  applyHistoryButtons();
+  showLibraryError("");
+  renderFiles();
+  try {
+    for (const path of paths) {
+      await window.fieldy.call("add_to_collection", { id: collectionId, path });
+    }
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+  } finally {
+    libraryBusy = false;
+  }
+  try {
+    await refresh();
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+    renderFiles();
+  }
+}
+
+async function addFileToNewCollection(file) {
+  const name = await askText({
+    title: "New collection",
+    okLabel: "Create",
+    value: "",
+  });
+  if (!name) return;
+  try {
+    const created = await window.fieldy.call("create_collection", { name });
+    await addPathsToCollection(created.id, [file.path]);
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+  }
+}
+
+async function createNewCollection() {
+  const name = await askText({
+    title: "New collection",
+    okLabel: "Create",
+    value: "",
+  });
+  if (!name) return;
+  try {
+    const created = await window.fieldy.call("create_collection", { name });
+    selectedFolder = COLLECTION_PREFIX + created.id;
+    selectedPaths.clear();
+    selectionAnchor = null;
+    await refresh();
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+  }
+}
+
+async function moveLibraryPaths(paths, destFolder) {
+  if (libraryBusy || ingesting || !paths.length) return;
+  libraryBusy = true;
+  applyHistoryButtons();
+  showLibraryError("");
+  renderFiles();
+  try {
+    for (const src of paths) {
+      await window.fieldy.call("move_file", { src, destFolder });
+    }
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+  } finally {
+    libraryBusy = false;
+  }
+  try {
+    await refresh();
+  } catch (err) {
+    showLibraryError(err.message || String(err));
+    renderFiles();
+  }
 }
 
 function renderTree(tree) {
   libraryTree = tree;
+  if (selectedFolder === "Favorites") selectedFolder = STARRED_VIEW;
   const folders = tree?.folders || [];
   const names = folders.map((folder) => folder.name);
-  if (!names.includes(selectedFolder)) selectedFolder = names[0] || "Mixed";
+  const collectionIds = new Set(
+    (tree?.collections || []).map((item) => COLLECTION_PREFIX + item.id)
+  );
+  if (
+    !PINNED_VIEWS.has(selectedFolder) &&
+    !names.includes(selectedFolder) &&
+    !collectionIds.has(selectedFolder)
+  ) {
+    selectedFolder = names[0] || "Mixed";
+  }
+
+  const viewList = document.getElementById("view-list");
+  viewList.replaceChildren();
+  appendFolderButton(
+    viewList,
+    RECENT_VIEW,
+    (tree?.recentlyAdded || []).length,
+    selectedFolder === RECENT_VIEW,
+    false
+  );
+  appendFolderButton(
+    viewList,
+    STARRED_VIEW,
+    (tree?.favorites || []).length,
+    selectedFolder === STARRED_VIEW,
+    false
+  );
+
+  const collectionList = document.getElementById("collection-list");
+  collectionList.replaceChildren();
+  for (const collection of tree?.collections || []) {
+    const key = COLLECTION_PREFIX + collection.id;
+    appendFolderButton(
+      collectionList,
+      collection.name,
+      collection.files?.length || 0,
+      selectedFolder === key,
+      false,
+      { collectionId: collection.id }
+    );
+  }
 
   const folderList = document.getElementById("folder-list");
   folderList.replaceChildren();
-  for (const folder of folders) {
-    const el = document.createElement("button");
-    el.type = "button";
-    el.className = "folder-item" + (folder.name === selectedFolder ? " selected" : "");
-    const name = document.createElement("span");
-    name.className = "folder-name";
-    name.textContent = folder.name;
-    const count = document.createElement("span");
-    count.className = "folder-count";
-    count.textContent = String(folder.files?.length || 0);
-    el.append(name, count);
-    el.addEventListener("click", () => {
-      selectedFolder = folder.name;
-      showLibraryError("");
-      renderTree(libraryTree);
-    });
-    folderList.appendChild(el);
+  const shown = visibleFolders();
+  if (!shown.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "No folders match.";
+    folderList.appendChild(empty);
+  } else {
+    for (const folder of shown) {
+      appendFolderButton(
+        folderList,
+        folder.name,
+        folderCount(folder),
+        folder.name === selectedFolder,
+        true
+      );
+    }
   }
+  syncFileTagFilter();
+  pruneSelection();
   renderFiles();
+}
+
+function currentFolderName(file) {
+  const parts = String(file.path || "").split(/[/\\]/);
+  return parts.length >= 2 ? parts[parts.length - 2] : "";
+}
+
+function selectedCollection() {
+  if (!String(selectedFolder).startsWith(COLLECTION_PREFIX)) return null;
+  const id = selectedFolder.slice(COLLECTION_PREFIX.length);
+  return (libraryTree?.collections || []).find((item) => item.id === id) || null;
+}
+
+function selectedFiles() {
+  if (selectedFolder === RECENT_VIEW) return libraryTree?.recentlyAdded || [];
+  if (selectedFolder === STARRED_VIEW) return libraryTree?.favorites || [];
+  const collection = selectedCollection();
+  if (collection) return collection.files || [];
+  const folder = (libraryTree?.folders || []).find((item) => item.name === selectedFolder);
+  return folder?.files || [];
+}
+
+function pruneSelection() {
+  const allowed = new Set(selectedFiles().map((file) => file.path));
+  for (const filePath of [...selectedPaths]) {
+    if (!allowed.has(filePath)) selectedPaths.delete(filePath);
+  }
+  if (selectionAnchor && !allowed.has(selectionAnchor)) selectionAnchor = null;
+}
+
+function isToggleModifier(event) {
+  return event.metaKey || event.ctrlKey;
+}
+
+function selectOnNameClick(filePath, event) {
+  const visible = visibleFiles().map((file) => file.path);
+  if (event.shiftKey && selectionAnchor && visible.includes(selectionAnchor)) {
+    const from = visible.indexOf(selectionAnchor);
+    const to = visible.indexOf(filePath);
+    if (from < 0 || to < 0) return;
+    const start = Math.min(from, to);
+    const end = Math.max(from, to);
+    if (!isToggleModifier(event)) selectedPaths.clear();
+    for (let i = start; i <= end; i += 1) selectedPaths.add(visible[i]);
+    return;
+  }
+  if (isToggleModifier(event)) {
+    if (selectedPaths.has(filePath)) selectedPaths.delete(filePath);
+    else selectedPaths.add(filePath);
+    selectionAnchor = filePath;
+    return;
+  }
+  selectedPaths.clear();
+  selectedPaths.add(filePath);
+  selectionAnchor = filePath;
+}
+
+function clearFileSelection() {
+  if (!selectedPaths.size && !selectionAnchor) return;
+  selectedPaths.clear();
+  selectionAnchor = null;
+  renderFiles();
+}
+
+function pathsForDrag(filePath) {
+  if (!selectedPaths.has(filePath)) {
+    selectedPaths.clear();
+    selectedPaths.add(filePath);
+    selectionAnchor = filePath;
+  }
+  return visibleFiles()
+    .map((file) => file.path)
+    .filter((item) => selectedPaths.has(item));
+}
+
+function bindFileDrag(el, file) {
+  el.draggable = true;
+  el.addEventListener("dragstart", (event) => {
+    event.preventDefault();
+    suppressFileClick = true;
+    draggingOut = true;
+    pendingDragPaths = pathsForDrag(file.path);
+    if (pendingDragPaths.length) window.fieldy.startLibraryDrag(pendingDragPaths);
+  });
+  el.addEventListener("dragend", () => {
+    draggingOut = false;
+    document.querySelectorAll(".folder-item.drop-target").forEach((item) => {
+      item.classList.remove("drop-target");
+    });
+    window.setTimeout(() => {
+      if (!draggingOut) pendingDragPaths = [];
+    }, 300);
+  });
+}
+
+function isUnderLibraryRoot(filePath) {
+  const root = String(libraryTree?.libraryRoot || "")
+    .replace(/\\/g, "/")
+    .replace(/\/$/, "");
+  const normalized = String(filePath || "").replace(/\\/g, "/");
+  if (!root || !normalized) return false;
+  return normalized === root || normalized.startsWith(`${root}/`);
+}
+
+function setFileFavorite(file, favorite) {
+  return mutateLibrary("set_favorite", { path: file.path, favorite });
+}
+
+async function renameLibraryFile(file) {
+  const next = await askRename(file.name);
+  if (!next || next === file.name) return;
+  mutateLibrary("rename_file", { path: file.path, newName: next });
+}
+
+async function deleteLibraryFile(file) {
+  const ok = await askConfirm({
+    title: "Delete file",
+    body: `Delete ${file.name}? This cannot be undone.`,
+    okLabel: "Delete",
+    tone: "danger",
+  });
+  if (!ok) return;
+  mutateLibrary("delete_file", { path: file.path });
+}
+
+async function reclassifyLibraryFile(file) {
+  const ok = await askConfirm({
+    title: "Reclassify file",
+    body: `Re-run YAMNet on ${file.name}? It will be retagged and moved if the class changes.`,
+    okLabel: "Reclassify",
+  });
+  if (!ok) return;
+  classifyExisting([file.path]);
+}
+
+function hideContextMenu() {
+  const menu = document.getElementById("context-menu");
+  if (!menu) return;
+  menu.classList.add("hidden");
+  menu.hidden = true;
+  menu.replaceChildren();
+}
+
+function addContextItem(menu, label, onClick, { danger, disabled } = {}) {
+  const item = document.createElement("button");
+  item.type = "button";
+  item.className = "context-item" + (danger ? " danger" : "");
+  item.setAttribute("role", "menuitem");
+  item.textContent = label;
+  item.disabled = Boolean(disabled);
+  item.addEventListener("click", () => {
+    hideContextMenu();
+    onClick();
+  });
+  menu.appendChild(item);
+}
+
+function addContextSeparator(menu) {
+  const line = document.createElement("div");
+  line.className = "context-sep";
+  menu.appendChild(line);
+}
+
+function addContextSubmenu(menu, label, entries) {
+  const wrap = document.createElement("div");
+  wrap.className = "context-subwrap";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "context-item has-sub";
+  btn.textContent = label;
+  const sub = document.createElement("div");
+  sub.className = "context-submenu";
+  for (const entry of entries) {
+    const subItem = document.createElement("button");
+    subItem.type = "button";
+    subItem.className = "context-item";
+    subItem.textContent = entry.label;
+    subItem.disabled = Boolean(entry.disabled);
+    subItem.addEventListener("click", () => {
+      hideContextMenu();
+      entry.onClick();
+    });
+    sub.appendChild(subItem);
+  }
+  wrap.append(btn, sub);
+  menu.appendChild(wrap);
+}
+
+function openContextMenu(event, file, otherFolders) {
+  const menu = document.getElementById("context-menu");
+  if (!menu) return;
+  hideContextMenu();
+  menu.hidden = false;
+  menu.classList.remove("hidden");
+  addContextItem(menu, "Show in Finder", () => {
+    window.fieldy.showInFinder(file.path).catch((err) => {
+      showLibraryError(err.message || String(err));
+    });
+  });
+  addContextItem(menu, file.favorite ? "Remove star" : "Add to starred", () => {
+    setFileFavorite(file, !file.favorite);
+  });
+  addContextSeparator(menu);
+  addContextItem(menu, "Rename", () => renameLibraryFile(file));
+  addContextItem(menu, "Delete", () => deleteLibraryFile(file), { danger: true });
+  addContextItem(
+    menu,
+    "Reclassify",
+    () => reclassifyLibraryFile(file),
+    { disabled: ingesting || libraryBusy }
+  );
+  const collections = libraryTree?.collections || [];
+  addContextSeparator(menu);
+  addContextSubmenu(menu, "Add to collection", [
+    {
+      label: "New collection…",
+      onClick: () => addFileToNewCollection(file),
+    },
+    ...collections.map((collection) => ({
+      label: collection.name,
+      onClick: () => addPathsToCollection(collection.id, [file.path]),
+    })),
+  ]);
+  if (otherFolders.length) {
+    addContextSeparator(menu);
+    addContextSubmenu(
+      menu,
+      "Move to",
+      otherFolders.map((dest) => ({
+        label: dest,
+        onClick: () => mutateLibrary("move_file", { src: file.path, destFolder: dest }),
+      }))
+    );
+  }
+  const pad = 8;
+  const x = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - pad);
+  const y = Math.min(event.clientY, window.innerHeight - menu.offsetHeight - pad);
+  menu.style.left = `${Math.max(pad, x)}px`;
+  menu.style.top = `${Math.max(pad, y)}px`;
+}
+
+function iconButton(label, paths) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "secondary icon-btn";
+  btn.setAttribute("aria-label", label);
+  btn.title = label;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "15");
+  svg.setAttribute("height", "15");
+  svg.setAttribute("aria-hidden", "true");
+  for (const d of paths) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-width", "2");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(path);
+  }
+  btn.appendChild(svg);
+  return btn;
 }
 
 function renderFiles() {
   const list = document.getElementById("file-list");
   const heading = document.getElementById("folder-heading");
-  const folder = (libraryTree?.folders || []).find((item) => item.name === selectedFolder);
-  const files = folder?.files || [];
-  if (heading) heading.textContent = selectedFolder;
+  const allFiles = selectedFiles();
+  const files = visibleFiles();
+  const collection = selectedCollection();
+  const isRecent = selectedFolder === RECENT_VIEW;
+  const isStarred = selectedFolder === STARRED_VIEW;
+  const isPinned = isRecent || isStarred;
+  if (heading) heading.textContent = collection ? collection.name : selectedFolder;
+  if (fileSort?.options?.[0]) {
+    fileSort.options[0].textContent = isPinned ? "Newest first" : "Default order";
+  }
   if (reclassifyFolder) {
-    reclassifyFolder.disabled = ingesting || libraryBusy || !files.length;
-    reclassifyFolder.title = files.length
-      ? `Run YAMNet again on ${files.length} file(s) in ${selectedFolder}`
-      : "No files in this folder";
+    reclassifyFolder.disabled = ingesting || libraryBusy || !allFiles.length;
+    reclassifyFolder.title = allFiles.length
+      ? `Run YAMNet again on ${allFiles.length} file(s) in ${collection ? collection.name : selectedFolder}`
+      : isRecent
+        ? "Nothing ingested yet"
+        : isStarred
+          ? "No starred files yet"
+          : collection
+            ? "No files in this collection"
+            : "No files in this folder";
   }
   list.replaceChildren();
+  if (!allFiles.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = isRecent
+      ? "Nothing ingested yet. Drop WAV files to see them here."
+      : isStarred
+        ? "No starred files yet. Star a file to see it here."
+        : collection
+          ? "No files in this collection yet."
+          : "No WAV files in this folder.";
+    list.appendChild(empty);
+    return;
+  }
   if (!files.length) {
     const empty = document.createElement("p");
     empty.className = "empty";
-    empty.textContent = "No WAV files in this folder.";
+    empty.textContent = "No files match.";
     list.appendChild(empty);
     return;
   }
 
-  const otherFolders = (libraryTree?.folders || [])
-    .map((item) => item.name)
-    .filter((name) => name !== selectedFolder);
+  const folderNames = (libraryTree?.folders || []).map((item) => item.name);
 
   for (const file of files) {
     const row = document.createElement("div");
-    row.className = "file-row" + (file.path === playback.path ? " playing" : "");
+    row.className =
+      "file-row" +
+      (file.path === playback.path ? " playing" : "") +
+      (selectedPaths.has(file.path) ? " selected" : "");
 
     const playBtn = document.createElement("button");
     playBtn.type = "button";
@@ -343,10 +1210,44 @@ function renderFiles() {
     playBtn.disabled = playback.loading;
     playBtn.addEventListener("click", () => togglePlayback(file));
 
+    const favBtn = document.createElement("button");
+    favBtn.type = "button";
+    favBtn.className = "favorite-btn" + (file.favorite ? " on" : "");
+    favBtn.setAttribute("aria-label", file.favorite ? `Unfavorite ${file.name}` : `Favorite ${file.name}`);
+    favBtn.setAttribute("aria-pressed", file.favorite ? "true" : "false");
+    favBtn.textContent = file.favorite ? "★" : "☆";
+    favBtn.disabled = ingesting || libraryBusy;
+    favBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setFileFavorite(file, !file.favorite);
+    });
+
+    const nameCell = document.createElement("div");
+    nameCell.className = "file-name-cell";
+
+    const handle = document.createElement("span");
+    handle.className = "file-drag-handle";
+    handle.title = "Drag to a folder or another app";
+    handle.setAttribute("aria-label", `Drag ${file.name}`);
+    for (let i = 0; i < 6; i += 1) handle.appendChild(document.createElement("i"));
+
     const name = document.createElement("div");
     name.className = "file-name";
     name.textContent = file.name;
     name.title = file.path;
+    name.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (suppressFileClick) {
+        suppressFileClick = false;
+        return;
+      }
+      selectOnNameClick(file.path, event);
+      renderFiles();
+    });
+
+    bindFileDrag(handle, file);
+    bindFileDrag(name, file);
+    nameCell.append(handle, name);
 
     const duration = document.createElement("div");
     duration.className = "file-duration";
@@ -360,6 +1261,7 @@ function renderFiles() {
     const actions = document.createElement("div");
     actions.className = "file-actions";
 
+    const otherFolders = folderNames.filter((name) => name !== currentFolderName(file));
     if (otherFolders.length) {
       const moveSelect = document.createElement("select");
       moveSelect.setAttribute("aria-label", `Move ${file.name}`);
@@ -381,43 +1283,29 @@ function renderFiles() {
       actions.appendChild(moveSelect);
     }
 
-    const renameBtn = document.createElement("button");
-    renameBtn.type = "button";
-    renameBtn.className = "secondary";
-    renameBtn.textContent = "Rename";
-    renameBtn.addEventListener("click", async () => {
-      const next = await askRename(file.name);
-      if (!next || next === file.name) return;
-      mutateLibrary("rename_file", { path: file.path, newName: next });
-    });
+    const renameBtn = iconButton("Rename", [
+      "M12 20h9",
+      "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z",
+    ]);
+    renameBtn.addEventListener("click", () => renameLibraryFile(file));
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.type = "button";
-    deleteBtn.className = "secondary";
-    deleteBtn.textContent = "Delete";
-    deleteBtn.addEventListener("click", () => {
-      if (!window.confirm(`Delete ${file.name}? This cannot be undone.`)) return;
-      mutateLibrary("delete_file", { path: file.path });
-    });
+    const deleteBtn = iconButton("Delete", [
+      "M3 6h18",
+      "M8 6V4h8v2",
+      "M19 6l-1 14H6L5 6",
+      "M10 11v6",
+      "M14 11v6",
+    ]);
+    deleteBtn.classList.add("danger");
+    deleteBtn.addEventListener("click", () => deleteLibraryFile(file));
 
-    const reclassifyBtn = document.createElement("button");
-    reclassifyBtn.type = "button";
-    reclassifyBtn.className = "secondary";
-    reclassifyBtn.textContent = "Reclassify";
-    reclassifyBtn.disabled = ingesting || libraryBusy;
-    reclassifyBtn.addEventListener("click", () => {
-      if (
-        !window.confirm(
-          `Re-run YAMNet on ${file.name}? It will be retagged and moved if the class changes.`
-        )
-      ) {
-        return;
-      }
-      classifyExisting([file.path]);
+    actions.append(renameBtn, deleteBtn);
+    row.append(playBtn, favBtn, nameCell, duration, tags, actions);
+    row.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openContextMenu(event, file, otherFolders);
     });
-
-    actions.append(renameBtn, deleteBtn, reclassifyBtn);
-    row.append(playBtn, name, duration, tags, actions);
     list.appendChild(row);
   }
 }
@@ -425,6 +1313,7 @@ function renderFiles() {
 async function mutateLibrary(method, params) {
   if (libraryBusy || ingesting) return;
   libraryBusy = true;
+  applyHistoryButtons();
   showLibraryError("");
   renderFiles();
   try {
@@ -442,6 +1331,11 @@ async function mutateLibrary(method, params) {
   }
 }
 
+document.getElementById("new-collection").addEventListener("click", () => {
+  if (ingesting || libraryBusy) return;
+  createNewCollection();
+});
+
 document.getElementById("browse-library").addEventListener("click", async () => {
   const picked = await window.fieldy.chooseLibraryRoot();
   if (picked) libraryRootInput.value = picked;
@@ -455,7 +1349,10 @@ saveButton.addEventListener("click", async () => {
   }
   saveButton.disabled = true;
   try {
-    await window.fieldy.call("save_config", { libraryRoot });
+    await window.fieldy.call("save_config", {
+      libraryRoot,
+      ingestMode: onboardingIngestMode.value === "copy" ? "copy" : "move",
+    });
     await refresh();
   } catch (err) {
     showOnboardingError(err.message || String(err));
@@ -467,13 +1364,23 @@ saveButton.addEventListener("click", async () => {
 ["dragenter", "dragover", "drop"].forEach((ev) => {
   window.addEventListener(ev, (e) => {
     e.preventDefault();
+    if (ev === "dragenter" || ev === "dragover") highlightFolderDropTarget(e);
+    if (ev === "drop") {
+      document.querySelectorAll(".folder-item.drop-target").forEach((item) => {
+        item.classList.remove("drop-target");
+      });
+      const target = dropTargetFromPoint(e.clientX, e.clientY);
+      if (!target) return;
+      if (target.kind === "folder") dropOnFolder(target.name, e);
+      if (target.kind === "collection") dropOnCollection(target.id, e);
+    }
   });
 });
 
 ["dragenter", "dragover"].forEach((ev) => {
   dropzone.addEventListener(ev, (e) => {
     e.preventDefault();
-    if (!ingesting) dropzone.classList.add("dragover");
+    if (!ingesting && !draggingOut) dropzone.classList.add("dragover");
   });
 });
 
@@ -482,12 +1389,14 @@ dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover
 async function runClassifyAndIngest(paths, { busyTitle, doneLabel }) {
   if (ingesting || libraryBusy || !paths.length) return;
   ingesting = true;
+  if (closeIngest) closeIngest.disabled = true;
   dropzone.classList.add("busy");
   dropzoneTitle.textContent = busyTitle;
+  applyHistoryButtons();
   renderFiles();
   jobRows.clear();
   ingestJobs.replaceChildren();
-  ingestJobs.hidden = false;
+  showIngestPanel();
   for (const filePath of paths) {
     if (isWavPath(filePath)) setJobStatus(filePath, "queued", "stage");
   }
@@ -507,7 +1416,9 @@ async function runClassifyAndIngest(paths, { busyTitle, doneLabel }) {
     showLibraryError(err.message || String(err));
   } finally {
     ingesting = false;
+    if (closeIngest) closeIngest.disabled = false;
     dropzone.classList.remove("busy");
+    applyHistoryButtons();
   }
   try {
     await refresh();
@@ -524,25 +1435,56 @@ function classifyExisting(paths) {
   });
 }
 
-reclassifyFolder.addEventListener("click", () => {
-  const folder = (libraryTree?.folders || []).find((item) => item.name === selectedFolder);
-  const files = folder?.files || [];
+closeIngest.addEventListener("click", () => {
+  if (ingesting) return;
+  hideIngestPanel();
+});
+
+closeDropzone.addEventListener("click", () => setDropzoneOpen(false));
+toggleDropzone.addEventListener("click", () => setDropzoneOpen(!dropzoneOpen()));
+openSettings.addEventListener("click", () => {
+  openSettingsDialog();
+});
+settingsBrowse.addEventListener("click", async () => {
+  const picked = await window.fieldy.chooseLibraryRoot();
+  if (picked) settingsLibraryRoot.value = picked;
+});
+undoBtn.addEventListener("click", () => runHistory("undo"));
+redoBtn.addEventListener("click", () => runHistory("redo"));
+
+[folderSearch, folderSort, folderFilter].forEach((el) => {
+  el.addEventListener(el.tagName === "INPUT" ? "input" : "change", () => {
+    if (libraryTree) renderTree(libraryTree);
+  });
+});
+
+[fileSearch, fileSort, fileFilter].forEach((el) => {
+  el.addEventListener(el.tagName === "INPUT" ? "input" : "change", () => {
+    renderFiles();
+  });
+});
+
+reclassifyFolder.addEventListener("click", async () => {
+  const files = selectedFiles();
   if (!files.length) return;
-  if (
-    !window.confirm(
-      `Re-run YAMNet on ${files.length} file(s) in ${selectedFolder}? Files are retagged and moved if the class changes. Originals are not copied.`
-    )
-  ) {
-    return;
-  }
+  const collection = selectedCollection();
+  const label = collection ? collection.name : selectedFolder;
+  const ok = await askConfirm({
+    title: "Re-run YAMNet",
+    body: `Re-run YAMNet on ${files.length} file(s) in ${label}? Files are retagged and moved if the class changes. Originals are not copied.`,
+    okLabel: "Reclassify",
+  });
+  if (!ok) return;
   classifyExisting(files.map((file) => file.path));
 });
 
 dropzone.addEventListener("drop", async (e) => {
   e.preventDefault();
   dropzone.classList.remove("dragover");
-  if (ingesting) return;
-  const paths = await collectIngestPaths(e.dataTransfer.files);
+  if (ingesting || draggingOut) return;
+  const paths = (await collectIngestPaths(e.dataTransfer.files)).filter(
+    (filePath) => !isUnderLibraryRoot(filePath)
+  );
   if (!paths.length) {
     dropzoneTitle.textContent = "Drop WAV files or folders (WAV only)";
     return;
@@ -566,6 +1508,55 @@ window.fieldy.onEvent((msg) => {
     return;
   }
   setJobStatus(file, stage, "stage");
+});
+
+window.addEventListener("keydown", (event) => {
+  const key = event.key.toLowerCase();
+  const combo = event.metaKey || event.ctrlKey;
+  if (combo && key === "z") {
+    if (event.target.closest("input, textarea, select")) return;
+    if (!dialog.classList.contains("hidden")) return;
+    event.preventDefault();
+    if (event.shiftKey) runHistory("redo");
+    else runHistory("undo");
+    return;
+  }
+  if (combo && key === "y") {
+    if (event.target.closest("input, textarea, select")) return;
+    if (!dialog.classList.contains("hidden")) return;
+    event.preventDefault();
+    runHistory("redo");
+    return;
+  }
+  if (event.key !== "Escape") return;
+  hideContextMenu();
+  if (!dialog.classList.contains("hidden")) return;
+  clearFileSelection();
+});
+
+document.getElementById("file-list").addEventListener("click", (event) => {
+  const list = event.currentTarget;
+  if (event.target === list || event.target.classList.contains("empty")) {
+    clearFileSelection();
+  }
+});
+
+document.getElementById("file-list").addEventListener("contextmenu", (event) => {
+  if (event.target === event.currentTarget || event.target.classList.contains("empty")) {
+    event.preventDefault();
+    hideContextMenu();
+  }
+});
+
+window.addEventListener("pointerdown", (event) => {
+  const menu = document.getElementById("context-menu");
+  if (!menu || menu.hidden) return;
+  if (menu.contains(event.target)) return;
+  hideContextMenu();
+});
+
+window.addEventListener("dragend", () => {
+  draggingOut = false;
 });
 
 refresh().catch((err) => {

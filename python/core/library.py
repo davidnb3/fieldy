@@ -6,8 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from core.config import assert_legal_destination, is_legal_destination
+from core.favorites import prune_favorite_paths
 from core.metadata import read_tags
 from core.preprocess import audio_info
+from core.recent import prune_recent_paths
+from core.user_collections import prune_collections
 
 AUDIO_SUFFIXES = {".wav", ".wave"}
 
@@ -47,6 +50,7 @@ def list_library(config: dict[str, Any]) -> dict[str, Any]:
     names.extend(extra)
 
     folders = []
+    files_by_path: dict[str, dict[str, Any]] = {}
     for name in names:
         folder = root / name
         files = []
@@ -54,9 +58,29 @@ def list_library(config: dict[str, Any]) -> dict[str, Any]:
             for child in sorted(folder.iterdir()):
                 if not child.is_file() or child.suffix.lower() not in AUDIO_SUFFIXES:
                     continue
-                files.append(_file_entry(child))
+                entry = _file_entry(child)
+                files.append(entry)
+                files_by_path[str(child.resolve())] = entry
         folders.append({"name": name, "files": files})
-    return {"libraryRoot": str(root), "folders": folders}
+    recent_paths = prune_recent_paths(root, set(files_by_path))
+    recently_added = [files_by_path[p] for p in recent_paths if p in files_by_path]
+    favorite_paths = prune_favorite_paths(root, set(files_by_path))
+    favorite_set = set(favorite_paths)
+    for entry in files_by_path.values():
+        resolved = str(Path(entry["path"]).expanduser().resolve())
+        entry["favorite"] = resolved in favorite_set
+    favorites = [files_by_path[p] for p in favorite_paths if p in files_by_path]
+    collections = []
+    for item in prune_collections(root, set(files_by_path)):
+        files = [files_by_path[p] for p in item["paths"] if p in files_by_path]
+        collections.append({"id": item["id"], "name": item["name"], "files": files})
+    return {
+        "libraryRoot": str(root),
+        "folders": folders,
+        "recentlyAdded": recently_added,
+        "favorites": favorites,
+        "collections": collections,
+    }
 
 
 def _file_entry(path: Path) -> dict[str, Any]:

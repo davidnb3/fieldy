@@ -11,30 +11,95 @@
       <div class="onboarding-card">
         <h1>Set up your library</h1>
         <p>
-          Choose a folder on this Mac. Sorted WAV files will be moved there into class folders
-          (for example Pour) plus Mixed. The app never creates all 521 AudioSet folders up front.
+          Choose a folder on this Mac. Fieldy will sort dropped WAVs into
+          <a id="audioset-link" class="external-link" href="https://research.google.com/audioset/dataset/index.html" target="_blank" rel="noopener noreferrer">AudioSet class</a>
+          folders (for example Siren, Animal, or Speech). The app never creates all AudioSet folders up front.
         </p>
-        <section>
-          <label for="library-root">Library folder</label>
-          <div class="path-row">
-            <input id="library-root" type="text" placeholder="Choose a folder…" readonly />
-            <button type="button" id="browse-library" class="secondary">Browse…</button>
-          </div>
-        </section>
+        <div class="fields">
+          <section class="field">
+            <label for="library-root">Library folder</label>
+            <div class="path-row">
+              <input id="library-root" type="text" placeholder="Choose a folder…" readonly />
+              <button type="button" id="browse-library" class="secondary">Browse…</button>
+            </div>
+          </section>
+          <section class="field">
+            <label for="onboarding-ingest-mode">When dropping files</label>
+            <select id="onboarding-ingest-mode">
+              <option value="move">Move into the library</option>
+              <option value="copy">Copy into the library</option>
+            </select>
+            <p class="hint">
+              Move relocates the WAV into your library. Copy leaves the original where it is and
+              adds a tagged file to the library. You can change this later in Settings.
+            </p>
+          </section>
+        </div>
         <p id="onboarding-error" class="error hidden"></p>
         <button type="button" id="save-config">Save and open library</button>
       </div>
     </div>
 
     <div id="library" class="screen hidden">
-      <header id="dropzone">
-        <p id="dropzone-title">Drop Zoom H6 WAV files or folders here</p>
-        <p id="dropzone-hint" class="hint">WAV only. Files are tagged and moved into your library. First classify loads YAMNet and can take a minute.</p>
+      <header id="app-bar">
+        <div id="app-logo">
+          <span class="logo-mark" aria-hidden="true"></span>
+          <span class="logo-word">Fieldy</span>
+        </div>
+        <div class="app-bar-actions">
+          <button type="button" id="toggle-dropzone" class="secondary" aria-pressed="true">Hide drop zone</button>
+          <button type="button" id="undo" class="secondary icon-btn" aria-label="Undo" title="Undo" disabled>
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d="M3 7v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <button type="button" id="redo" class="secondary icon-btn" aria-label="Redo" title="Redo" disabled>
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d="M21 7v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <button type="button" id="open-settings" class="secondary">Settings</button>
+        </div>
       </header>
-      <ul id="ingest-jobs" class="job-list" hidden></ul>
+      <div class="library-body">
+        <div id="dropzone">
+          <button type="button" id="close-dropzone" class="secondary">Close</button>
+          <p id="dropzone-title">Drop Zoom H6 WAV files or folders here</p>
+          <p id="dropzone-hint" class="hint">WAV only. Files are tagged and moved into your library. First classify loads YAMNet and can take a minute.</p>
+        </div>
+      <div id="ingest-panel" class="ingest-panel" hidden>
+        <div class="ingest-panel-bar">
+          <span class="ingest-panel-title">Last drop</span>
+          <button type="button" id="close-ingest" class="secondary">Close</button>
+        </div>
+        <ul id="ingest-jobs" class="job-list"></ul>
+      </div>
       <div class="workspace">
         <aside>
+          <h2>Libraries</h2>
+          <nav id="view-list"></nav>
+          <nav id="collection-list"></nav>
+          <button type="button" id="new-collection" class="secondary">New collection</button>
           <h2>Folders</h2>
+          <div class="list-tools">
+            <input id="folder-search" type="search" placeholder="Search folders" spellcheck="false" />
+            <div class="tool-row">
+              <select id="folder-sort" aria-label="Sort folders">
+                <option value="mixed">Mixed first</option>
+                <option value="name-asc">Name A–Z</option>
+                <option value="name-desc">Name Z–A</option>
+                <option value="count-desc">Most files</option>
+                <option value="count-asc">Fewest files</option>
+              </select>
+              <select id="folder-filter" aria-label="Filter folders">
+                <option value="all">All folders</option>
+                <option value="with-files">With files</option>
+                <option value="empty">Empty</option>
+              </select>
+            </div>
+          </div>
           <nav id="folder-list"></nav>
         </aside>
         <main>
@@ -43,10 +108,28 @@
               <h2 id="folder-heading">Mixed</h2>
               <button type="button" id="reclassify-folder" class="secondary">Re-run YAMNet</button>
             </div>
+            <div class="list-tools">
+              <input id="file-search" type="search" placeholder="Search files" spellcheck="false" />
+              <div class="tool-row">
+                <select id="file-sort" aria-label="Sort files">
+                  <option value="default">Default order</option>
+                  <option value="name-asc">Name A–Z</option>
+                  <option value="name-desc">Name Z–A</option>
+                  <option value="dur-desc">Longest</option>
+                  <option value="dur-asc">Shortest</option>
+                </select>
+                <select id="file-filter" aria-label="Filter files">
+                  <option value="all">All files</option>
+                  <option value="tagged">Has tags</option>
+                  <option value="untagged">No tags</option>
+                </select>
+              </div>
+            </div>
             <p id="library-error" class="error hidden"></p>
           </div>
           <div id="file-list"></div>
         </main>
+      </div>
       </div>
       <footer id="player" class="player hidden">
         <button type="button" id="player-toggle" class="secondary">Pause</button>
@@ -57,16 +140,46 @@
         <canvas id="player-wave" height="72"></canvas>
       </footer>
     </div>
-    <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <div class="modal-card">
-        <p id="modal-title">Rename file</p>
-        <input id="modal-input" type="text" spellcheck="false" />
-        <div class="modal-actions">
-          <button type="button" id="modal-cancel" class="secondary">Cancel</button>
-          <button type="button" id="modal-ok">Rename</button>
+    <div id="dialog" class="dialog hidden" role="dialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-body">
+      <div class="dialog-card">
+        <p id="dialog-title">Dialog</p>
+        <p id="dialog-body" class="dialog-body hidden"></p>
+        <input id="dialog-input" type="text" spellcheck="false" class="hidden" />
+        <div id="dialog-settings" class="dialog-extra hidden">
+          <div class="fields">
+            <div class="field">
+              <label for="settings-library-root">Library folder</label>
+              <div class="path-row">
+                <input id="settings-library-root" type="text" readonly />
+                <button type="button" id="settings-browse" class="secondary">Browse…</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="settings-ingest-mode">When dropping files</label>
+              <select id="settings-ingest-mode" aria-describedby="settings-ingest-hint">
+                <option value="move">Move into the library</option>
+                <option value="copy">Copy into the library</option>
+              </select>
+              <p id="settings-ingest-hint" class="hint">Move relocates the WAV. Copy leaves the original in place and tags only the library file. Undo reverses that drop.</p>
+            </div>
+            <div class="field">
+              <label for="settings-threshold">Classification threshold</label>
+              <input id="settings-threshold" type="number" min="0" max="1" step="0.05" aria-describedby="settings-threshold-hint" />
+              <p id="settings-threshold-hint" class="hint">YAMNet scores every AudioSet class from 0 to 1. Only classes at or above this value become tags, and the file’s folder is the top class that clears it. Lower (for example 0.2) tags more classes; higher (for example 0.5) is stricter and more files may land in Mixed. Default is 0.3.</p>
+            </div>
+            <label class="check-row">
+              <input id="settings-dropzone-on-launch" type="checkbox" />
+              Show drop zone when Fieldy opens
+            </label>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" id="dialog-cancel" class="secondary">Cancel</button>
+          <button type="button" id="dialog-ok">OK</button>
         </div>
       </div>
     </div>
+    <div id="context-menu" class="context-menu hidden" role="menu" hidden></div>
     <script src="app.js"></script>
   </body>
 </html>

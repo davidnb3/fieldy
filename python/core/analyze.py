@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 
 from core.classifier import PATCH_HOP_SECONDS, PATCH_WINDOW_SECONDS, YamnetClassifier
 from core.mapper import decide_destination, foreground_frames, tag_scores, temporal_mix
-from core.preprocess import DEFAULT_CHUNK_SECONDS, yamnet_waveform_chunks
+from core.preprocess import DEFAULT_CHUNK_SECONDS, audio_info, yamnet_waveform_chunks
 
 
 def destination_from_frames(
@@ -80,6 +81,7 @@ def frame_scores_for_path(
     classifier: YamnetClassifier,
     *,
     chunk_seconds: float | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> np.ndarray:
     """Run YAMNet on the whole file, stitching ~60 s chunks (RAM bound, not a skip)."""
     chunk_s = aligned_chunk_seconds(
@@ -89,17 +91,26 @@ def frame_scores_for_path(
     parts: list[np.ndarray] = []
     first = True
     n_classes = len(classifier.class_names)
-    for waveform in yamnet_waveform_chunks(
-        path,
-        chunk_seconds=chunk_s,
-        overlap_seconds=PATCH_WINDOW_SECONDS,
+    hop = chunk_s - PATCH_WINDOW_SECONDS
+    duration = float(audio_info(path)["duration"])
+    total = 1 if duration <= chunk_s else max(1, int(np.ceil((duration - PATCH_WINDOW_SECONDS) / hop)))
+    for index, waveform in enumerate(
+        yamnet_waveform_chunks(
+            path,
+            chunk_seconds=chunk_s,
+            overlap_seconds=PATCH_WINDOW_SECONDS,
+        )
     ):
+        if on_progress:
+            on_progress(index, total)
         frames = classifier.frame_scores(waveform)
         if not first and skip_n > 0:
             frames = frames[skip_n:]
         first = False
         if frames.size:
             parts.append(np.asarray(frames, dtype=np.float32))
+    if on_progress:
+        on_progress(total, total)
     if not parts:
         return np.zeros((0, n_classes), dtype=np.float32)
     return np.concatenate(parts, axis=0)
@@ -111,18 +122,25 @@ def classify_path(
     *,
     threshold: float,
     chunk_seconds: float | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> dict[str, Any]:
-    frames = frame_scores_for_path(path, classifier, chunk_seconds=chunk_seconds)
+    frames = frame_scores_for_path(
+        path, classifier, chunk_seconds=chunk_seconds, on_progress=on_progress
+    )
     dest, matching, clip = destination_from_frames(
         frames,
         classifier.class_names,
         threshold=threshold,
     )
     ranked = sorted(clip.items(), key=lambda kv: kv[1], reverse=True)[:5]
+    score = clip.get(dest)
+    if score is None and ranked:
+        score = ranked[0][1]
     return {
         "path": path,
         "destination": dest,
         "tags": matching,
+        "score": None if score is None else float(score),
         "frames": int(frames.shape[0]),
         "top": [{"class": name, "score": score} for name, score in ranked],
     }

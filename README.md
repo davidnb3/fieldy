@@ -4,14 +4,14 @@ Desktop app for automated audio ingest, YAMNet classification, metadata tagging,
 
 Architecture for agents: `.cursor/rules/` (always-on `00-architecture.mdc`) plus `docs/ARCHITECTURE.md`. History of the original 11 phases: `docs/IMPLEMENTATION.md`.
 
-**Status (2026-09-16):** Original phases **1–11 are done**, plus reclassify-in-place, Silence-aware destination, in-app rename dialog, and playback. Product name is **Fieldy** (repo `/Users/davidpieri/Fieldy`). Tests: `python -m pytest python/tests -q` only — no Electron UI tests.
+**Status (2026-09-17):** Original phases **1–11 are done**, plus later library UX (Recently added, Starred, collections, drag-out, search/sort/filter). Product name is **Fieldy** (repo `/Users/davidpieri/Fieldy`). Tests: `python -m pytest python/tests -q` only — no Electron UI tests.
 
 ## What the app does
 
-- First run: pick a **library root**. Folders are AudioSet class names created on demand, plus **`Mixed`**.
-- Drop WAV files or folders. Python tags the original (ID3 desc `Fieldy`) and moves it.
+- First run: pick a **library root** and whether drops **move or copy**. Folders are AudioSet class names created on demand, plus **`Mixed`**.
+- Drop WAV files or folders. Python classifies them. **Move** (default) tags the original and relocates it; **Copy** (Settings) leaves the original untagged and adds a tagged library file. Undo reverses the last drop.
 - Destination is the top **non-Silence** class from YAMNet frames (mean-pool active patches so long quiet forest takes are not all filed as Silence). Silence may still appear as a tag.
-- Library explorer: move (existing folders only), rename (in-app dialog — not `window.prompt`), delete, **Re-run YAMNet** on a file or folder.
+- Library explorer: **Libraries** (Recently added, Starred, user collections) plus class folders. Top **app bar** (logo placeholder, Show/Hide drop zone, Undo/Redo, Settings). Move (existing folders only, or drag onto a folder), star, collections (Fieldy-only lists, not disk folders), rename / delete / reclassify / Settings via the shared in-app **dialog** (not `window.prompt` / `window.confirm`). **Re-run YAMNet** on a file or folder. Right-click for Show in Finder and the same actions. Drag originals out to Finder or a DAW.
 - **▶** plays in a bottom waveform. Chromium hears a temp 16-bit copy; the library file stays 32-bit float.
 
 ## Stack

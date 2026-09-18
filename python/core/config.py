@@ -12,12 +12,21 @@ RESERVED_FOLDERS = ("Mixed",)
 CONFIG_FILENAME = ".Fieldy.json"
 LEGACY_CONFIG_FILENAME = ".soundly-lite.json"
 ALLOWED_KEYS = frozenset(
-    {"libraryRoot", "confidenceThreshold", "conflictDelta", "analyzeChunkSeconds"}
+    {
+        "libraryRoot",
+        "confidenceThreshold",
+        "conflictDelta",
+        "analyzeChunkSeconds",
+        "ingestMode",
+        "dropzoneOnLaunch",
+    }
 )
 DEFAULTS = {
     "confidenceThreshold": 0.3,
     "conflictDelta": 0.15,
     "analyzeChunkSeconds": 60,
+    "ingestMode": "move",
+    "dropzoneOnLaunch": True,
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -101,6 +110,16 @@ def merge_and_validate(params: dict[str, Any]) -> dict[str, Any]:
         if chunk < 5:
             raise ValueError("analyzeChunkSeconds must be >= 5")
         cfg["analyzeChunkSeconds"] = chunk
+    if "ingestMode" in params:
+        mode = params["ingestMode"]
+        if mode not in ("move", "copy"):
+            raise ValueError("ingestMode must be move or copy")
+        cfg["ingestMode"] = mode
+    if "dropzoneOnLaunch" in params:
+        flag = params["dropzoneOnLaunch"]
+        if not isinstance(flag, bool):
+            raise ValueError("dropzoneOnLaunch must be a boolean")
+        cfg["dropzoneOnLaunch"] = flag
     cfg["libraryRoot"] = str(root)
     return cfg
 

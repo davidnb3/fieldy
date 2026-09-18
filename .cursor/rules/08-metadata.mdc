@@ -12,6 +12,7 @@ alwaysApply: false
 
 - mutagen `WAVE` + ID3 chunk (not a PCM rewrite, not a sidecar `.txt`).
 - `TXXX` desc=`Fieldy`, text = ordered unique class names.
+- `TXXX` desc=`FieldyScore`, text = destination score (`0.9100`). `read_score(path)` returns a float or `None`.
 - `COMM` desc=`Fieldy`, lang=`eng`, text = comma-separated same names (or an explicit `comment=`).
 - `read_tags(path)` returns the `TXXX` list. Untagged file → `[]`.
 - Re-tagging replaces previous Fieldy frames and leftover `SoundlyLite` frames.
@@ -21,7 +22,7 @@ alwaysApply: false
 
 - 32-bit float / stereo / 48–96 kHz **samples stay bit-identical**. Tests hash PCM via `soundfile.read`, not the whole file (the header grows).
 - `audio_info` subtype remains `FLOAT`.
-- Tag **before** `shutil.move` in ingest (`python/core/ingest.py`).
+- Tag **before** `shutil.move` in ingest (`python/core/ingest.py`). Copy mode tags the library copy after `copy2`, not the source.
 - MVP is WAVE (Zoom H6). Do not transcode to write tags.
 
 ## Tests
