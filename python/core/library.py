@@ -7,6 +7,7 @@ from typing import Any
 
 from core.audio_formats import AUDIO_SUFFIXES
 from core.config import DEFAULTS, assert_legal_destination, is_legal_destination
+from core.errors import inspect_library_root
 from core.favorites import prune_favorite_paths
 from core.mapper import placement_why
 from core.metadata import read_score, read_tags
@@ -18,10 +19,13 @@ from core.user_collections import prune_collections
 def require_ready_config(config: dict[str, Any]) -> Path:
     if config.get("needsOnboarding"):
         raise ValueError("needsOnboarding: save_config with libraryRoot first")
-    root = Path(config["libraryRoot"]).expanduser().resolve()
-    if not root.is_dir():
-        raise ValueError(f"libraryRoot is not a directory: {root}")
-    return root
+    raw = config.get("libraryRoot")
+    problem = inspect_library_root(str(raw) if raw else None)
+    if problem == "unreadable":
+        raise PermissionError("library folder unreadable")
+    if problem == "missing" or not raw:
+        raise ValueError("library folder missing")
+    return Path(str(raw)).expanduser().resolve()
 
 
 def resolve_library_file(config: dict[str, Any], path: str) -> Path:

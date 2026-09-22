@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
+
+from core.errors import inspect_library_root
 
 RESERVED_FOLDERS = ("Mixed",)
 CONFIG_FILENAME = ".Fieldy.json"
@@ -47,8 +50,28 @@ DEFAULTS = {
     "playbackPreservePitch": True,
 }
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+
+def fieldy_root() -> Path:
+    """Repo root while developing; extraResources root when packaged.
+
+    Electron sets FIELDY_ROOT on the Python child. Unpackaged pytest uses
+    this file’s location (…/python/core/config.py → parents[2]).
+    """
+    raw = (os.environ.get("FIELDY_ROOT") or "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return Path(__file__).resolve().parents[2]
+
+
+REPO_ROOT = fieldy_root()
 CLASS_MAP_PATH = REPO_ROOT / "config" / "yamnet_class_map.csv"
+
+
+def yamnet_model_dir() -> Path:
+    raw = (os.environ.get("FIELDY_YAMNET_DIR") or "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return fieldy_root() / "models" / "yamnet"
 
 
 def default_pointer_path() -> Path:
@@ -201,10 +224,16 @@ class ConfigStore:
 
     def get(self) -> dict[str, Any]:
         if self._config is not None:
-            return dict(self._config)
+            data = dict(self._config)
+            problem = inspect_library_root(data.get("libraryRoot"))
+            if problem:
+                data["libraryRootProblem"] = problem
+            return data
         loaded = self._load_from_disk()
         if loaded is None:
             return {"needsOnboarding": True}
+        if loaded.get("libraryRootProblem"):
+            return dict(loaded)
         self._config = loaded
         return dict(loaded)
 
@@ -239,6 +268,14 @@ class ConfigStore:
         if not library_root:
             return None
         root = Path(library_root)
+        try:
+            is_dir = root.is_dir()
+        except PermissionError:
+            return {"libraryRoot": str(root), "libraryRootProblem": "unreadable"}
+        except OSError:
+            return {"libraryRoot": str(root), "libraryRootProblem": "missing"}
+        if not is_dir:
+            return {"libraryRoot": str(root), "libraryRootProblem": "missing"}
         config_file = next(
             (
                 candidate
@@ -248,7 +285,7 @@ class ConfigStore:
             None,
         )
         if config_file is None:
-            return None
+            return {"libraryRoot": str(root.resolve()), "libraryRootProblem": "missing"}
         raw = json.loads(config_file.read_text(encoding="utf-8"))
         if not isinstance(raw, dict):
             raise ValueError(f"invalid config file: {config_file}")

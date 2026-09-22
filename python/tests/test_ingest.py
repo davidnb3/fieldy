@@ -77,6 +77,7 @@ def test_ingest_batch_continues_after_error(tmp_path: Path):
         classifier=FakeSpeechClassifier(),
     )
     assert jobs[0]["ok"] is False
+    assert "isn’t there" in jobs[0]["error"]
     assert jobs[1]["ok"] is True
     assert Path(jobs[1]["movedTo"]).is_file()
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from core.config import ConfigStore
+from core.errors import inspect_library_root
 from core.favorites import (
     load_favorite_paths,
     remap_favorite_path,
@@ -33,6 +34,16 @@ from core.user_collections import (
 
 Handler = Callable[[dict[str, Any]], Any]
 ProgressFn = Callable[[dict[str, Any]], None]
+
+
+def _public_config(data: dict[str, Any]) -> dict[str, Any]:
+    out = {key: value for key, value in data.items() if key != "libraryRootProblem"}
+    if out.get("needsOnboarding"):
+        return out
+    problem = data.get("libraryRootProblem") or inspect_library_root(out.get("libraryRoot"))
+    if problem:
+        out["libraryRootProblem"] = problem
+    return out
 
 
 def _param_paths(params: dict[str, Any], *keys: str) -> list[str]:
@@ -222,7 +233,11 @@ def build_handlers(
         if mode not in (None, "relocate", "fresh"):
             raise ValueError("libraryRootMode must be relocate or fresh")
         if not previous.get("needsOnboarding"):
-            merged = {key: value for key, value in previous.items() if key != "needsOnboarding"}
+            merged = {
+                key: value
+                for key, value in previous.items()
+                if key not in ("needsOnboarding", "libraryRootProblem")
+            }
             merged.update(incoming)
             incoming = merged
         old_root = previous.get("libraryRoot")
@@ -252,7 +267,7 @@ def build_handlers(
 
     return {
         "ping": lambda _p: {"pong": True},
-        "get_config": lambda _p: cfg.get(),
+        "get_config": lambda _p: _public_config(cfg.get()),
         "save_config": save_config,
         "classify_and_ingest": classify_and_ingest,
         "list_library": get_list_library,

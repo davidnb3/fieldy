@@ -133,3 +133,15 @@ def test_playback_prefs_round_trip_and_range(tmp_path: Path):
     )
     assert wide["playbackPitchRange"] == 8
     assert wide["playbackPitch"] == 800
+
+
+def test_pointer_to_missing_folder_is_not_onboarding(tmp_path: Path):
+    import json
+
+    gone = tmp_path / "gone-library"
+    pointer = tmp_path / "pointer.json"
+    pointer.write_text(json.dumps({"libraryRoot": str(gone)}) + "\n", encoding="utf-8")
+    loaded = ConfigStore(pointer_path=pointer).get()
+    assert loaded.get("needsOnboarding") is not True
+    assert loaded["libraryRootProblem"] == "missing"
+    assert Path(loaded["libraryRoot"]) == gone

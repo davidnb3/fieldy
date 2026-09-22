@@ -4,20 +4,24 @@ from __future__ import annotations
 
 import csv
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
 
-from core.config import YAMNET_CLASS_NAMES_ORDERED
+from core.config import YAMNET_CLASS_NAMES_ORDERED, yamnet_model_dir
 
 # Official YAMNet hyperparameters (tensorflow/models research/audioset/yamnet).
 PATCH_WINDOW_SECONDS = 0.96
 PATCH_HOP_SECONDS = 0.48
 NUM_CLASSES = 521
 SAMPLE_RATE = 16000
-YAMNET_HANDLE = "https://tfhub.dev/google/yamnet/1"
 # First patch needs ~0.975 s of 16 kHz audio (window 25 ms, no edge pad).
 MIN_WAVEFORM_SECONDS = 0.975
+
+
+def yamnet_saved_model_marker(model_dir: Path | None = None) -> Path:
+    return (model_dir or yamnet_model_dir()) / "saved_model.pb"
 
 
 class YamnetClassifier:
@@ -29,9 +33,18 @@ class YamnetClassifier:
         if self._model is not None:
             return
         os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+        model_dir = yamnet_model_dir()
+        marker = yamnet_saved_model_marker(model_dir)
+        if not marker.is_file():
+            print(
+                f"Expected {marker}. Fetch with: python scripts/fetch_yamnet.py",
+                file=sys.stderr,
+            )
+            raise RuntimeError("Fieldy is missing its listening model.")
+
         import tensorflow_hub as hub
 
-        self._model = hub.load(YAMNET_HANDLE)
+        self._model = hub.load(str(model_dir))
         from_model = self._class_names_from_model()
         if from_model:
             self.class_names = from_model

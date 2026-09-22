@@ -58,6 +58,15 @@ const libraryRootDialog = document.getElementById("library-root-dialog");
 const libraryRootRelocate = document.getElementById("library-root-relocate");
 const libraryRootFresh = document.getElementById("library-root-fresh");
 const libraryRootCancel = document.getElementById("library-root-cancel");
+const libraryMissingDialog = document.getElementById("library-missing-dialog");
+const libraryMissingTitle = document.getElementById("library-missing-title");
+const libraryMissingBody = document.getElementById("library-missing-body");
+const libraryMissingChoose = document.getElementById("library-missing-choose");
+const libraryMissingRetry = document.getElementById("library-missing-retry");
+const libraryMissingLater = document.getElementById("library-missing-later");
+const backendBanner = document.getElementById("backend-banner");
+const backendBannerText = document.getElementById("backend-banner-text");
+const backendBannerRetry = document.getElementById("backend-banner-retry");
 const dropzoneHint = document.getElementById("dropzone-hint");
 const dropzoneProgress = document.getElementById("dropzone-progress");
 const dropzoneProgressLabel = document.getElementById("dropzone-progress-label");
@@ -75,6 +84,10 @@ let appConfig = null;
 let pendingLibraryRootMode = null;
 let dropzonePrefApplied = false;
 let lastIngestFailed = false;
+let libraryMissingDismissed = false;
+let libraryMissingOpen = false;
+let backendNoticeShown = "";
+let backendWasDown = false;
 let persistPlaybackTimer = 0;
 let lastAutoPlayPath = "";
 let playerClosedByUser = false;
@@ -120,8 +133,87 @@ playback.audio.addEventListener("loadedmetadata", () => {
 });
 
 function showOnboardingError(message) {
-  onboardingError.textContent = message;
-  onboardingError.classList.toggle("hidden", !message);
+  const text = message ? friendlyError({ message: String(message.message || message) }) : "";
+  onboardingError.textContent = text;
+  onboardingError.classList.toggle("hidden", !text);
+}
+
+const GENERIC_ERROR = "Something went wrong. Try again, or pick your library folder in Settings.";
+
+function unwrapErrorText(err) {
+  let raw = (err && err.message ? err.message : String(err || "")).trim();
+  for (let i = 0; i < 5; i += 1) {
+    const next = raw
+      .replace(/^error invoking remote method '[^']+':\s*/i, "")
+      .replace(/^error:\s*/i, "")
+      .trim();
+    if (next === raw) break;
+    raw = next;
+  }
+  return raw;
+}
+
+function isSafeUserCopy(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return false;
+  if (/^Fieldy\b/.test(raw)) return true;
+  const lower = raw.toLowerCase();
+  const allowed = [
+    GENERIC_ERROR.toLowerCase(),
+    "choose a library folder first.",
+    "threshold must be between 0 and 1.",
+    "that file isn’t there anymore.",
+    "that file isn't there anymore.",
+    "this file isn’t in the library folder anymore.",
+    "this file isn't in the library folder anymore.",
+    "this disk is full, so fieldy couldn’t save the file.",
+    "this disk is full, so fieldy couldn't save the file.",
+    "the new library folder can’t be inside the current one, or the other way around.",
+    "the new library folder can't be inside the current one, or the other way around.",
+    "that folder name isn’t an audioset class or mixed.",
+    "that folder name isn't an audioset class or mixed.",
+    "fieldy paused sorting. try again in a moment, or quit and reopen fieldy.",
+    "nothing landed in the library. see the errors below.",
+    "the drop did not finish. nothing new was added.",
+  ];
+  return allowed.includes(lower);
+}
+
+function friendlyError(err) {
+  const raw = unwrapErrorText(err);
+  const lower = raw.toLowerCase();
+  if (!raw) return GENERIC_ERROR;
+  if (
+    lower.includes("python backend is not running") ||
+    lower.includes("python exited") ||
+    lower.includes("app quitting")
+  ) {
+    return "Fieldy paused sorting. Try again in a moment, or quit and reopen Fieldy.";
+  }
+  if (isLibraryGoneMessage(raw)) {
+    return /^Fieldy\b/.test(raw)
+      ? raw
+      : "Fieldy can’t find your library folder. Choose it again in Settings, or pick a new folder.";
+  }
+  if (isSafeUserCopy(raw)) return raw;
+  return GENERIC_ERROR;
+}
+
+function isLibraryGoneMessage(text) {
+  const lower = String(text || "").toLowerCase();
+  return (
+    lower.includes("can’t find your library folder") ||
+    lower.includes("can't find your library folder") ||
+    lower.includes("can’t use this library folder") ||
+    lower.includes("can't use this library folder") ||
+    lower.includes("library folder is missing")
+  );
+}
+
+function queueLibraryRootRecovery() {
+  if (!appConfig) appConfig = {};
+  if (!appConfig.libraryRootProblem) appConfig.libraryRootProblem = "missing";
+  offerLibraryRootRecovery(appConfig);
 }
 
 function baseName(filePath) {
@@ -224,7 +316,7 @@ function jobWhyLine(job) {
 function setJobStatus(filePath, text, kind) {
   const row = ensureJobRow(filePath);
   const status = row.querySelector(".status");
-  status.textContent = text;
+  status.textContent = kind === "err" ? friendlyError({ message: String(text || "") }) : text;
   status.className = `status ${kind || "stage"}`;
   row.classList.toggle("has-error", kind === "err");
 }
@@ -546,7 +638,7 @@ function configPayload(extra = {}) {
 }
 
 function persistPlaybackPrefs() {
-  if (!appConfig) return;
+  if (!appConfig || appConfig.libraryRootProblem) return;
   window.clearTimeout(persistPlaybackTimer);
   persistPlaybackTimer = window.setTimeout(() => {
     window.fieldy.call("save_config", configPayload()).catch((err) => {
@@ -759,8 +851,15 @@ async function openSettingsDialog() {
 function showLibraryError(message) {
   const el = document.getElementById("library-error");
   if (!el) return;
-  el.textContent = message || "";
-  el.classList.toggle("hidden", !message);
+  const raw = !message
+    ? ""
+    : message.message
+      ? String(message.message)
+      : String(message);
+  const text = raw ? friendlyError({ message: raw }) : "";
+  el.textContent = text;
+  el.classList.toggle("hidden", !text);
+  if (text && isLibraryGoneMessage(text)) queueLibraryRootRecovery();
 }
 
 function applyHistoryButtons() {
@@ -1093,10 +1192,153 @@ async function refresh() {
   library.classList.remove("hidden");
   libraryChrome?.classList.remove("hidden");
   applyAppConfig(cfg, { applyDropzonePref: !dropzonePrefApplied });
+  if (cfg.libraryRootProblem) {
+    libraryTree = {
+      libraryRoot: cfg.libraryRoot,
+      folders: [{ name: "Mixed", files: [] }],
+      recentlyAdded: [],
+      favorites: [],
+      collections: [],
+    };
+    renderTree(libraryTree);
+    await offerLibraryRootRecovery(cfg);
+    return;
+  }
+  libraryMissingDismissed = false;
   const tree = await window.fieldy.call("list_library");
   renderTree(tree);
   await syncHistory();
   drawWaveform();
+}
+
+function emptyLibraryRecoveryCopy() {
+  if (appConfig?.libraryRootProblem === "unreadable") {
+    return {
+      title: "Can’t use this library folder",
+      body: "Fieldy doesn’t have permission to use this folder. Choose a different folder, or fix the permissions and try again.",
+      danger: true,
+    };
+  }
+  return {
+    title: "Library folder is missing",
+    body: "Fieldy can’t find the folder it was using. Plug the disk back in, or choose a different folder.",
+    danger: true,
+  };
+}
+
+function offerLibraryRootRecovery(cfg) {
+  if (libraryMissingOpen || libraryMissingDismissed || !libraryMissingDialog) {
+    return Promise.resolve();
+  }
+  libraryMissingOpen = true;
+  const unreadable = cfg.libraryRootProblem === "unreadable";
+  if (libraryMissingTitle) {
+    libraryMissingTitle.textContent = unreadable
+      ? "Can’t use this library folder"
+      : "Library folder is missing";
+  }
+  if (libraryMissingBody) {
+    libraryMissingBody.textContent = unreadable
+      ? `Fieldy can’t read or write ${cfg.libraryRoot || "your library folder"}. Check permissions, or choose a different folder.`
+      : `Fieldy was using ${cfg.libraryRoot || "a folder"}, but it isn’t here. The disk may be disconnected, or the folder was moved.`;
+  }
+  libraryMissingDialog.classList.remove("hidden");
+  return new Promise((resolve) => {
+    const finish = async (choice) => {
+      libraryMissingChoose?.removeEventListener("click", onChoose);
+      libraryMissingRetry?.removeEventListener("click", onRetry);
+      libraryMissingLater?.removeEventListener("click", onLater);
+      libraryMissingDialog.classList.add("hidden");
+      libraryMissingOpen = false;
+      if (choice === "later") {
+        libraryMissingDismissed = true;
+        resolve();
+        return;
+      }
+      if (choice === "retry") {
+        try {
+          await refresh();
+        } catch (err) {
+          showLibraryError(err);
+        }
+        resolve();
+        return;
+      }
+      const picked = await window.fieldy.chooseLibraryRoot();
+      if (picked) {
+        try {
+          await window.fieldy.call("save_config", {
+            libraryRoot: picked,
+            libraryRootMode: "fresh",
+          });
+          libraryMissingDismissed = false;
+          await refresh();
+        } catch (err) {
+          showLibraryError(err);
+        }
+      }
+      resolve();
+    };
+    const onChoose = () => finish("choose");
+    const onRetry = () => finish("retry");
+    const onLater = () => finish("later");
+    libraryMissingChoose?.addEventListener("click", onChoose);
+    libraryMissingRetry?.addEventListener("click", onRetry);
+    libraryMissingLater?.addEventListener("click", onLater);
+  });
+}
+
+async function applyBackendStatus(status) {
+  if (!backendBanner) return;
+  if (status === "ok" || status === "starting") {
+    backendBanner.classList.add("hidden");
+    backendBannerRetry?.classList.add("hidden");
+    backendNoticeShown = "";
+    const recovered = backendWasDown && status === "ok";
+    backendWasDown = false;
+    if (recovered) {
+      showLibraryError("");
+      try {
+        await refresh();
+      } catch (err) {
+        showLibraryError(err);
+      }
+    }
+    return;
+  }
+  backendWasDown = true;
+  backendBanner.classList.remove("hidden");
+  if (status === "retrying") {
+    if (backendBannerText) backendBannerText.textContent = "Fieldy paused sorting. Retrying…";
+    backendBannerRetry?.classList.add("hidden");
+    return;
+  }
+  backendBannerRetry?.classList.remove("hidden");
+  if (status === "missing") {
+    if (backendBannerText) backendBannerText.textContent = "Fieldy couldn’t start sorting.";
+    if (backendNoticeShown !== "missing") {
+      backendNoticeShown = "missing";
+      await openDialog({
+        title: "Fieldy couldn’t start",
+        body: "Quit Fieldy and open it again.",
+        okLabel: "OK",
+        showCancel: false,
+      });
+    }
+    return;
+  }
+  if (status === "dead") {
+    if (backendBannerText) backendBannerText.textContent = "Fieldy stopped sorting.";
+    if (backendNoticeShown !== "dead") {
+      backendNoticeShown = "dead";
+      await openDialog({
+        title: "Fieldy stopped sorting",
+        body: "Quit Fieldy and open it again.",
+        okLabel: "OK",
+        showCancel: false,
+      });
+    }
+  }
 }
 
 function libraryHasAudio(tree = libraryTree) {
@@ -1888,7 +2130,9 @@ function renderFiles() {
   list.replaceChildren();
   if (!allFiles.length) {
     const emptyLibrary = !libraryHasAudio();
-    if (isRecent && lastIngestFailed && emptyLibrary) {
+    if (appConfig?.libraryRootProblem) {
+      appendEmptyState(list, emptyLibraryRecoveryCopy());
+    } else if (isRecent && lastIngestFailed && emptyLibrary) {
       appendEmptyState(list, {
         title: "Nothing was added",
         body: "The last drop did not land in the library. Check Last drop for the error, then try again.",
@@ -2118,7 +2362,7 @@ saveButton.addEventListener("click", async () => {
     });
     await refresh();
   } catch (err) {
-    showOnboardingError(err.message || String(err));
+    showOnboardingError(friendlyError(err));
   } finally {
     saveButton.disabled = false;
   }
@@ -2210,9 +2454,9 @@ async function runClassifyAndIngest(paths, { busyTitle, doneLabel }) {
     }
   } catch (err) {
     lastIngestFailed = true;
-    dropzoneTitle.textContent = err.message || String(err);
+    dropzoneTitle.textContent = friendlyError(err);
     setIngestSummary("The drop did not finish. Nothing new was added.", { danger: true });
-    showLibraryError(err.message || String(err));
+    showLibraryError(err);
   } finally {
     ingesting = false;
     if (closeIngest) closeIngest.disabled = false;
@@ -2301,6 +2545,10 @@ dropzone.addEventListener("drop", async (e) => {
 });
 
 window.fieldy.onEvent((msg) => {
+  if (msg.name === "backend") {
+    applyBackendStatus((msg.payload || {}).status);
+    return;
+  }
   if (msg.name !== "progress") return;
   const payload = msg.payload || {};
   const { file, stage, destination, error, why } = payload;
@@ -2415,8 +2663,22 @@ window.addEventListener("dragend", () => {
 
 refresh().catch((err) => {
   console.error(err);
-  onboarding.classList.remove("hidden");
-  library.classList.add("hidden");
-  libraryChrome?.classList.add("hidden");
-  showOnboardingError(err.message || String(err));
+  onboarding.classList.add("hidden");
+  library.classList.remove("hidden");
+  libraryChrome?.classList.remove("hidden");
+  showLibraryError(err);
+});
+
+backendBannerRetry?.addEventListener("click", async () => {
+  backendNoticeShown = "";
+  try {
+    await window.fieldy.retryPython();
+  } catch (err) {
+    showLibraryError(err);
+  }
+  try {
+    await refresh();
+  } catch (err) {
+    showLibraryError(err);
+  }
 });

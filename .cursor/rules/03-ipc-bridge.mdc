@@ -50,7 +50,7 @@ alwaysApply: false
 - Promise map keyed by `id`. Bad stdout lines are logged, not fatal.
 - Events: `webContents.send("python-event", msg)`
 - preload: `window.fieldy.call`, `onEvent`, `pathForFile`, `statPath`, `chooseLibraryRoot`, `readPlaybackFile`, `startLibraryDrag`, `showInFinder`, `openExternal`
-- Spawn `.venv/bin/python` (`PYTHONUNBUFFERED=1`, `PYTHONPATH=python`). Missing venv → error dialog.
+- Spawn bundled `python-runtime` when packaged (`process.resourcesPath`); unpackaged uses repo `.venv` unless `python-runtime` exists. `PYTHONUNBUFFERED=1`, `PYTHONPATH={root}/python`, `FIELDY_ROOT`, `FIELDY_YAMNET_DIR`. Override with `FIELDY_PYTHON` / `FIELDY_ROOT`. Missing interpreter or repeated crash → `backend` events to the renderer (in-app dialog/banner), not a pip/`showErrorBox` lecture. `retry-python` resets the crash counter and respawns.
 - If Python exits, reject in-flight promises and respawn unless the app is quitting.
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
 

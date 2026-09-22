@@ -5,6 +5,7 @@ import traceback
 from typing import Any, TextIO
 
 from ipc.handlers import build_handlers
+from core.errors import explain
 
 
 def run_stdio_loop(stdin: TextIO, stdout: TextIO, stderr: TextIO) -> None:
@@ -30,7 +31,7 @@ def run_stdio_loop(stdin: TextIO, stdout: TextIO, stderr: TextIO) -> None:
             _write(stdout, {"id": msg.get("id"), "ok": True, "result": result})
         except Exception as exc:  # noqa: BLE001 — IPC must never die on one bad request
             traceback.print_exc(file=stderr)
-            _write(stdout, {"id": msg.get("id"), "ok": False, "error": str(exc)})
+            _write(stdout, {"id": msg.get("id"), "ok": False, "error": explain(exc)})
 
 
 def emit_event(stdout: TextIO, name: str, payload: dict[str, Any]) -> None:

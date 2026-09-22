@@ -52,7 +52,7 @@ Exit criteria: synthetic clip vectors (top class, none → Mixed); related water
 
 ## Phase 7 — Electron main + preload — done
 
-- `electron/main.js`: spawn `.venv` Python, NDJSON by `id`, progress events, respawn on crash, reject in-flight calls.
+- `electron/main.js`: spawn Python (`python-runtime` when packaged, else `.venv`), NDJSON by `id`, progress events, respawn on crash, reject in-flight calls.
 - `preload.js`: `window.fieldy.call`, `onEvent`, `pathForFile` (`webUtils`), `statPath`, `readPlaybackFile`. `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
 - Exit: app starts; `get_config` reaches Python. Full onboarding/drop UX is Phases 8–10.
 
@@ -96,7 +96,8 @@ Not numbered in the first plan; treat as current product:
 - **Selection:** click row; Cmd/Ctrl, Shift, Cmd+A; Space, arrows, Delete, F2/Enter, S; batch move/star/delete/reclassify/collections.
 - **Playback:** `prepare_playback` + full-width waveform, scrub, mute/level, loop, rewind, pitch/tempo (`playbackRate`; Keep master tune = `preservesPitch`), autoplay, close. Temp PCM_16 only. See `.cursor/rules/11-playback.mdc`.
 - **Name:** Fieldy. Config `.Fieldy.json` / `~/.Fieldy/`. Legacy Soundly Lite paths and ID3 `SoundlyLite` still read.
+- **On-disk YAMNet:** `models/yamnet` via `scripts/fetch_yamnet.py`; Electron passes `FIELDY_ROOT` / `FIELDY_YAMNET_DIR`. Packager-ready extraResources (`python`, `config`, `models`, `python-runtime`).
 
 ## Suggested next work (not scheduled)
 
-Auto-slice long takes, a score-o-gram UI, or a packaged build — only if the user asks.
+Auto-slice long takes, a score-o-gram UI, or a signed/notarized installer — only if the user asks.

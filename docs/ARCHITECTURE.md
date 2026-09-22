@@ -43,7 +43,7 @@ YAMNet is a **sliding-window** classifier, not a “one shot for the whole clip�
 | Classes | 521 AudioSet events |
 | Scores tensor | `(N, 521)` — one row per patch |
 
-The Hub model accepts a 1-D waveform of **any length**. Internally it frames it and returns `N` score vectors. Official `inference.py` **mean-pools** those frames for a clip-level ranking; per-frame scores show events that change over time.
+The Hub model is **vendored** as `models/yamnet` (same SavedModel). Fieldy loads that folder; it does not download at drop time.
 
 Fieldy uses the same mechanism:
 

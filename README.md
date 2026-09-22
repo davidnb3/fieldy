@@ -45,11 +45,14 @@ node node_modules/electron/install.js
 cd /Users/davidpieri/Fieldy
 python -c "import tensorflow as tf, tensorflow_hub as hub; print(tf.__version__, hub.__version__)"
 python -m pytest python/tests -q
+python scripts/fetch_yamnet.py
 printf '%s\n' '{"id":"1","method":"ping"}' | python python/main.py
 npm start
 ```
 
-Electron must spawn `.venv/bin/python` with `PYTHONUNBUFFERED=1`. Root `npm start` runs `npm start --prefix electron`.
+Electron spawns `.venv/bin/python` when developing (`PYTHONUNBUFFERED=1`, `FIELDY_ROOT` = repo). Packaged builds spawn `python-runtime` from extraResources. The listening model is `models/yamnet` (gitignored; fetch script above) — not downloaded on first drop.
+
+Root `npm start` runs `npm start --prefix electron`. Optional unpacked `.app`: `npm run pack` (copies `.venv` → `python-runtime` on this Mac only; not a signed installer).
 
 Reset onboarding: quit the app, delete `~/.Fieldy/pointer.json` (legacy `~/.soundly-lite/pointer.json` is still read if the new pointer is missing).
 
@@ -71,4 +74,4 @@ See `.cursor/rules/03-ipc-bridge.mdc`. Python is long-lived. Renderer never muta
 
 ## Not in the app yet
 
-Auto-slicing long takes into shorter files; score-o-gram UI; packaged installer.
+Auto-slicing long takes into shorter files; score-o-gram UI; signed/notarized installer. Packager-ready extraResources + on-disk YAMNet are in place (`npm run pack` is an unsigned unpacked `.app` for local testing).

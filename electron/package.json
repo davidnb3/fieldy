@@ -4,9 +4,56 @@
   "private": true,
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "prepare-pack": "bash ../scripts/prepare-pack-resources.sh"
   },
   "devDependencies": {
-    "electron": "^32.0.0"
+    "electron": "^32.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "app.fieldy",
+    "productName": "Fieldy",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../python",
+        "to": "python",
+        "filter": ["**/*", "!**/__pycache__/**", "!**/*.pyc"]
+      },
+      {
+        "from": "../config",
+        "to": "config"
+      },
+      {
+        "from": "../models",
+        "to": "models"
+      },
+      {
+        "from": "../python-runtime",
+        "to": "python-runtime"
+      },
+      {
+        "from": "icons",
+        "to": "icons"
+      }
+    ],
+    "mac": {
+      "icon": "icons/icon.png",
+      "category": "public.app-category.music",
+      "target": ["dir"]
+    },
+    "win": {
+      "icon": "icons/icon.ico",
+      "target": ["dir"]
+    }
   }
 }

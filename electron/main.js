@@ -8,21 +8,44 @@ const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 
-const repoRoot = path.join(__dirname, "..");
 const AUDIO_EXTS = new Set([".wav", ".wave", ".aif", ".aiff", ".flac", ".mp3"]);
+
+function fieldyRoot() {
+  if (process.env.FIELDY_ROOT) return path.resolve(process.env.FIELDY_ROOT);
+  if (app.isPackaged) return process.resourcesPath;
+  return path.join(__dirname, "..");
+}
+
+function pythonBin() {
+  if (process.env.FIELDY_PYTHON) return path.resolve(process.env.FIELDY_PYTHON);
+  const root = fieldyRoot();
+  const bundled =
+    process.platform === "win32"
+      ? path.join(root, "python-runtime", "Scripts", "python.exe")
+      : path.join(root, "python-runtime", "bin", "python");
+  const venv =
+    process.platform === "win32"
+      ? path.join(root, ".venv", "Scripts", "python.exe")
+      : path.join(root, ".venv", "bin", "python");
+  if (app.isPackaged || fs.existsSync(bundled)) return bundled;
+  return venv;
+}
 
 let py = null;
 let win = null;
 let quitting = false;
 let crashCount = 0;
+let lastBackendStatus = "starting";
 const pending = new Map();
 let nextId = 1;
 
-function pythonBin() {
-  if (process.platform === "win32") {
-    return path.join(repoRoot, ".venv", "Scripts", "python.exe");
-  }
-  return path.join(repoRoot, ".venv", "bin", "python");
+function emitBackend(status) {
+  lastBackendStatus = status;
+  win?.webContents.send("python-event", {
+    type: "event",
+    name: "backend",
+    payload: { status },
+  });
 }
 
 function failPending(message) {
@@ -33,22 +56,25 @@ function failPending(message) {
 }
 
 function spawnPython() {
+  const root = fieldyRoot();
   const bin = pythonBin();
   if (!fs.existsSync(bin)) {
-    dialog.showErrorBox(
-      "Python not found",
-      `Expected ${bin}\nCreate the venv and pip install -r python/requirements.txt`
-    );
+    console.error("[python] missing interpreter", bin);
+    emitBackend("missing");
     return;
   }
 
-  py = spawn(bin, ["-u", path.join(repoRoot, "python", "main.py")], {
-    cwd: repoRoot,
+  const pythonSrc = path.join(root, "python");
+  const yamnetDir = path.join(root, "models", "yamnet");
+  py = spawn(bin, ["-u", path.join(pythonSrc, "main.py")], {
+    cwd: root,
     stdio: ["pipe", "pipe", "pipe"],
     env: {
       ...process.env,
       PYTHONUNBUFFERED: "1",
-      PYTHONPATH: path.join(repoRoot, "python"),
+      PYTHONPATH: pythonSrc,
+      FIELDY_ROOT: root,
+      FIELDY_YAMNET_DIR: yamnetDir,
     },
   });
 
@@ -76,6 +102,7 @@ function spawnPython() {
         pending.delete(msg.id);
         waiter(msg);
         crashCount = 0;
+        emitBackend("ok");
       }
     }
   });
@@ -84,22 +111,21 @@ function spawnPython() {
 
   py.on("error", (err) => {
     console.error("[python] spawn error", err);
-    failPending(err.message);
+    failPending("Python backend is not running");
     py = null;
+    if (!quitting) emitBackend("retrying");
   });
 
   py.on("exit", (code, signal) => {
     py = null;
-    failPending(`python exited (${code ?? signal})`);
+    failPending("Python backend is not running");
     if (quitting) return;
     crashCount += 1;
     if (crashCount > 5) {
-      dialog.showErrorBox(
-        "Python backend crashed",
-        "The classifier process exited repeatedly. Check the terminal for [python] logs."
-      );
+      emitBackend("dead");
       return;
     }
+    emitBackend("retrying");
     setTimeout(spawnPython, 400);
   });
 }
@@ -108,6 +134,10 @@ const dragIcon = nativeImage.createFromPath(path.join(__dirname, "drag-icon.png"
 
 function appIconPath() {
   const name = process.platform === "win32" ? "icon.ico" : "icon.png";
+  if (app.isPackaged) {
+    const fromResources = path.join(process.resourcesPath, "icons", name);
+    if (fs.existsSync(fromResources)) return fromResources;
+  }
   return path.join(__dirname, "icons", name);
 }
 
@@ -211,6 +241,9 @@ function createWindow() {
     },
   });
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
+  win.webContents.on("did-finish-load", () => {
+    if (lastBackendStatus) emitBackend(lastBackendStatus);
+  });
   const openHttps = (url) => {
     if (typeof url === "string" && url.startsWith("https://")) {
       shell.openExternal(url);
@@ -229,8 +262,12 @@ function createWindow() {
 
 app.whenReady().then(() => {
   applyDockIcon();
-  spawnPython();
   ipcMain.handle("python-call", (_e, method, params) => pythonCall(method, params));
+  ipcMain.handle("retry-python", () => {
+    crashCount = 0;
+    if (!py) spawnPython();
+    return { ok: true };
+  });
   ipcMain.handle("pick-library-root", async () => {
     const result = await dialog.showOpenDialog(win, {
       title: "Choose library folder",
@@ -288,6 +325,7 @@ app.whenReady().then(() => {
   });
   createWindow();
   applyDockIcon();
+  spawnPython();
 });
 
 app.on("activate", () => {

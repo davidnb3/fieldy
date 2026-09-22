@@ -10,6 +10,7 @@ from core.audio_formats import is_audio_path
 from core.analyze import classify_path
 from core.classifier import YamnetClassifier
 from core.config import DEFAULTS, assert_legal_destination
+from core.errors import explain
 from core.fs_ops import copy_into_folder, move_into_folder
 from core.metadata import read_score, read_tags, write_tags
 from core.recent import is_under_library, record_new_ingest
@@ -60,7 +61,7 @@ def ingest_paths(
         raise ValueError("needsOnboarding: save_config with libraryRoot first")
     library_root = Path(config["libraryRoot"]).expanduser().resolve()
     if not library_root.is_dir():
-        raise ValueError(f"libraryRoot is not a directory: {library_root}")
+        raise ValueError("library folder missing")
     threshold = float(config.get("confidenceThreshold", DEFAULTS["confidenceThreshold"]))
     chunk_seconds = float(config.get("analyzeChunkSeconds", DEFAULTS["analyzeChunkSeconds"]))
     model = classifier or get_classifier()
@@ -171,8 +172,9 @@ def _ingest_one(
             "top": result["top"],
         }
     except Exception as exc:  # noqa: BLE001 — batch must continue
-        report("error", error=str(exc))
-        return {"path": original, "ok": False, "error": str(exc)}
+        message = explain(exc)
+        report("error", error=message)
+        return {"path": original, "ok": False, "error": message}
 
 
 def _progress(

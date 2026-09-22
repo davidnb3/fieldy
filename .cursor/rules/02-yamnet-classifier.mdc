@@ -28,7 +28,7 @@ Constants (must match YAMNet, not our invention):
 
 ## Classifier (`python/core/classifier.py`)
 
-- Load `https://tfhub.dev/google/yamnet/1` once in `YamnetClassifier.load()`.
+- Load the SavedModel at `{FIELDY_ROOT}/models/yamnet` (or `FIELDY_YAMNET_DIR`) once in `YamnetClassifier.load()`. Do not call TensorFlow Hub at runtime. Fetch into that folder with `python scripts/fetch_yamnet.py`.
 - Class names from the model’s AudioSet CSV (not a user list).
 - `frame_scores(waveform) -> np.ndarray` shape `(N, 521)`.
 - `clip_scores(frame_scores) -> dict[str, float]` = mean over axis 0 (YAMNet’s usual clip aggregate).

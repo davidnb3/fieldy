@@ -1,4 +1,4 @@
-"""Live YAMNet (downloads TF Hub model once). Skip with: pytest -m 'not yamnet'."""
+"""Live YAMNet from models/yamnet. Skip with: pytest -m 'not yamnet'."""
 
 from __future__ import annotations
 
@@ -6,7 +6,13 @@ import numpy as np
 import pytest
 
 from core.analyze import classify_waveform
-from core.classifier import NUM_CLASSES, PATCH_HOP_SECONDS, PATCH_WINDOW_SECONDS, YamnetClassifier
+from core.classifier import (
+    NUM_CLASSES,
+    PATCH_HOP_SECONDS,
+    PATCH_WINDOW_SECONDS,
+    YamnetClassifier,
+    yamnet_saved_model_marker,
+)
 from core.config import DEFAULTS
 
 pytestmark = pytest.mark.yamnet
@@ -14,6 +20,8 @@ pytestmark = pytest.mark.yamnet
 
 @pytest.fixture(scope="module")
 def yamnet() -> YamnetClassifier:
+    if not yamnet_saved_model_marker().is_file():
+        pytest.skip("models/yamnet missing; run python scripts/fetch_yamnet.py")
     clf = YamnetClassifier()
     clf.load()
     return clf

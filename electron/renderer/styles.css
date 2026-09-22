@@ -118,6 +118,27 @@ body {
   display: block;
 }
 
+.backend-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px 8px 88px;
+  background: rgba(229, 83, 75, 0.16);
+  border-bottom: 1px solid rgba(229, 83, 75, 0.45);
+  color: var(--danger-text);
+  font-size: 13px;
+}
+
+.backend-banner p {
+  margin: 0;
+  flex: 1;
+}
+
+.backend-banner button {
+  flex-shrink: 0;
+}
+
 .library-body {
   display: flex;
   flex-direction: column;

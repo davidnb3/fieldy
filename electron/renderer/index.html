@@ -41,6 +41,10 @@
           </button>
         </div>
     </header>
+    <div id="backend-banner" class="backend-banner hidden" role="status">
+      <p id="backend-banner-text"></p>
+      <button type="button" id="backend-banner-retry" class="secondary hidden">Try again</button>
+    </div>
     <div id="onboarding" class="screen">
       <div class="onboarding-card">
         <h1>Set up your library</h1>
@@ -294,6 +298,17 @@
           <button type="button" id="library-root-relocate">Move files to the new folder</button>
           <button type="button" id="library-root-fresh" class="secondary">Leave files here and start fresh</button>
           <button type="button" id="library-root-cancel" class="secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div id="library-missing-dialog" class="dialog nested-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="library-missing-title" aria-describedby="library-missing-body">
+      <div class="dialog-card">
+        <p id="library-missing-title">Library folder is missing</p>
+        <p id="library-missing-body" class="dialog-body"></p>
+        <div class="dialog-actions dialog-actions-stack">
+          <button type="button" id="library-missing-choose">Choose a different folder</button>
+          <button type="button" id="library-missing-retry" class="secondary">Try again</button>
+          <button type="button" id="library-missing-later" class="secondary">Not now</button>
         </div>
       </div>
     </div>

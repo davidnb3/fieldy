@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "start": "npm start --prefix electron",
-    "install:electron": "npm install --prefix electron"
+    "install:electron": "npm install --prefix electron",
+    "pack": "npm run prepare-pack --prefix electron && npm run pack --prefix electron"
   }
 }
