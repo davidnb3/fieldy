@@ -9,6 +9,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 
 const repoRoot = path.join(__dirname, "..");
+const AUDIO_EXTS = new Set([".wav", ".wave", ".aif", ".aiff", ".flac", ".mp3"]);
 
 let py = null;
 let win = null;
@@ -105,6 +106,22 @@ function spawnPython() {
 
 const dragIcon = nativeImage.createFromPath(path.join(__dirname, "drag-icon.png"));
 
+function appIconPath() {
+  const name = process.platform === "win32" ? "icon.ico" : "icon.png";
+  return path.join(__dirname, "icons", name);
+}
+
+function loadAppIcon() {
+  return nativeImage.createFromPath(appIconPath());
+}
+
+function applyDockIcon() {
+  if (process.platform !== "darwin" || !app.dock) return;
+  const iconPath = appIconPath();
+  if (!fs.existsSync(iconPath)) return;
+  app.dock.setIcon(iconPath);
+}
+
 function readPointerLibraryRoot() {
   const candidates = [
     path.join(os.homedir(), ".Fieldy", "pointer.json"),
@@ -152,7 +169,7 @@ function libraryFilesForDrag(rawPaths) {
     }
     if (!st.isFile()) continue;
     const ext = path.extname(resolved).toLowerCase();
-    if (ext !== ".wav" && ext !== ".wave") continue;
+    if (!AUDIO_EXTS.has(ext)) continue;
     if (!isPathInsideRoot(resolved, root)) continue;
     seen.add(resolved);
     files.push(resolved);
@@ -178,7 +195,14 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1280,
     height: 800,
+    minWidth: 960,
+    minHeight: 640,
     backgroundColor: "#1a1b1e",
+    title: "Fieldy",
+    icon: loadAppIcon(),
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 16, y: 18 },
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -204,6 +228,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  applyDockIcon();
   spawnPython();
   ipcMain.handle("python-call", (_e, method, params) => pythonCall(method, params));
   ipcMain.handle("pick-library-root", async () => {
@@ -249,7 +274,7 @@ app.whenReady().then(() => {
   ipcMain.handle("show-in-finder", (_e, target) => {
     const files = libraryFilesForDrag([target]);
     if (files.length !== 1) {
-      throw new Error("not a library WAV");
+      throw new Error("not a library audio file");
     }
     shell.showItemInFolder(files[0]);
     return { ok: true };
@@ -262,6 +287,7 @@ app.whenReady().then(() => {
     return { ok: true };
   });
   createWindow();
+  applyDockIcon();
 });
 
 app.on("activate", () => {

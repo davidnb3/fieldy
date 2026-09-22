@@ -19,6 +19,15 @@ ALLOWED_KEYS = frozenset(
         "analyzeChunkSeconds",
         "ingestMode",
         "dropzoneOnLaunch",
+        "playbackVolume",
+        "playbackLoop",
+        "autoPlayOnSelect",
+        "playbackMuted",
+        "playbackPitch",
+        "playbackPitchEnabled",
+        "playbackPitchRange",
+        "playbackPitchResetOnNew",
+        "playbackPreservePitch",
     }
 )
 DEFAULTS = {
@@ -27,6 +36,15 @@ DEFAULTS = {
     "analyzeChunkSeconds": 60,
     "ingestMode": "move",
     "dropzoneOnLaunch": True,
+    "playbackVolume": 1.0,
+    "playbackLoop": False,
+    "autoPlayOnSelect": False,
+    "playbackMuted": False,
+    "playbackPitch": 100.0,
+    "playbackPitchEnabled": False,
+    "playbackPitchRange": 2,
+    "playbackPitchResetOnNew": True,
+    "playbackPreservePitch": True,
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -116,12 +134,49 @@ def merge_and_validate(params: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("ingestMode must be move or copy")
         cfg["ingestMode"] = mode
     if "dropzoneOnLaunch" in params:
-        flag = params["dropzoneOnLaunch"]
-        if not isinstance(flag, bool):
-            raise ValueError("dropzoneOnLaunch must be a boolean")
-        cfg["dropzoneOnLaunch"] = flag
+        cfg["dropzoneOnLaunch"] = _as_bool(params["dropzoneOnLaunch"], "dropzoneOnLaunch")
+    if "playbackVolume" in params:
+        cfg["playbackVolume"] = _number_in_range(
+            params["playbackVolume"], "playbackVolume", 0.0, 1.0
+        )
+    if "playbackLoop" in params:
+        cfg["playbackLoop"] = _as_bool(params["playbackLoop"], "playbackLoop")
+    if "autoPlayOnSelect" in params:
+        cfg["autoPlayOnSelect"] = _as_bool(params["autoPlayOnSelect"], "autoPlayOnSelect")
+    if "playbackMuted" in params:
+        cfg["playbackMuted"] = _as_bool(params["playbackMuted"], "playbackMuted")
+    if "playbackPitchRange" in params:
+        rng = int(_as_float(params["playbackPitchRange"], "playbackPitchRange"))
+        if rng not in (2, 4, 8):
+            raise ValueError("playbackPitchRange must be 2, 4, or 8")
+        cfg["playbackPitchRange"] = rng
+    pitch_max = float(cfg["playbackPitchRange"]) * 100.0
+    if "playbackPitch" in params:
+        cfg["playbackPitch"] = _number_in_range(
+            params["playbackPitch"], "playbackPitch", 0.1, pitch_max
+        )
+    else:
+        cfg["playbackPitch"] = min(float(cfg["playbackPitch"]), pitch_max)
+    if "playbackPitchEnabled" in params:
+        cfg["playbackPitchEnabled"] = _as_bool(
+            params["playbackPitchEnabled"], "playbackPitchEnabled"
+        )
+    if "playbackPitchResetOnNew" in params:
+        cfg["playbackPitchResetOnNew"] = _as_bool(
+            params["playbackPitchResetOnNew"], "playbackPitchResetOnNew"
+        )
+    if "playbackPreservePitch" in params:
+        cfg["playbackPreservePitch"] = _as_bool(
+            params["playbackPreservePitch"], "playbackPreservePitch"
+        )
     cfg["libraryRoot"] = str(root)
     return cfg
+
+
+def _as_bool(value: Any, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{field} must be a boolean")
+    return value
 
 
 def _as_float(value: Any, field: str) -> float:
@@ -155,8 +210,10 @@ class ConfigStore:
 
     def save(self, params: dict[str, Any]) -> dict[str, Any]:
         cfg = merge_and_validate(params)
-        root = Path(cfg["libraryRoot"])
+        root = Path(cfg["libraryRoot"]).expanduser()
         root.mkdir(parents=True, exist_ok=True)
+        root = root.resolve()
+        cfg["libraryRoot"] = str(root)
         mixed = root / "Mixed"
         mixed.mkdir(exist_ok=True)
         payload = json.dumps(cfg, indent=2) + "\n"

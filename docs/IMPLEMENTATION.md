@@ -2,7 +2,7 @@
 
 Build in this order. Do not start Electron until the Python ingest pipeline works from the CLI.
 
-**Status (2026-09-17):** Phases **1–11 are done**. After that (also done): Silence-aware destination, reclassify in the library, shared in-app dialog, in-app playback, Fieldy rename, Recently added / Starred / collections. Automated coverage is Python pytest only (`python -m pytest python/tests -q`); there are no Electron UI tests.
+**Status (2026-09-22):** Phases **1–11 are done**. After that (also done): Silence-aware destination, reclassify, shared `#dialog`, playback scrub, Fieldy rename, Recently added / Starred / collections, move vs copy, undo/redo, WAV/AIFF/FLAC/MP3, drop-zone progress, library-root relocate/fresh, placement why on last drop, row select + keyboard/batch. Automated coverage is Python pytest only (`python -m pytest python/tests -q`); there are no Electron UI tests.
 
 ## Phase 1 — Config core (Python) — done
 
@@ -63,7 +63,7 @@ Exit criteria: synthetic clip vectors (top class, none → Mixed); related water
 
 ## Phase 9 — Drop zone — done
 
-- WAV files or folders; job list + progress events; first YAMNet load can be slow.
+- WAV, AIFF, FLAC, MP3 files or folders; overall drop-zone progress bar + job list; first model load can be slow.
 - Drop zone can be closed; reopen from `#app-bar`.
 - `pathForFile` + `statPath`; window drag defaults prevented.
 
@@ -71,7 +71,7 @@ Exit criteria: synthetic clip vectors (top class, none → Mixed); related water
 
 - Sidebar: `Mixed` + existing class folders. File list: play, name, duration, tags.
 - Move/rename/delete via Python IPC. Move dropdown uses folders that already exist (no typed dest). Rename / delete / reclassify use the shared in-app `#dialog` (`window.prompt` / `window.confirm` do not work well in Electron).
-- Reclassify: **Re-run YAMNet** on the open folder, or **Reclassify** in the file context menu (`classify_and_ingest` on library paths). No per-row Reclassify button.
+- Reclassify: **Reclassify** on the open folder, or **Reclassify** in the file context menu (`classify_and_ingest` on library paths). No per-row Reclassify button.
 
 ## Phase 11 — Edge-case hardening — done
 
@@ -88,12 +88,15 @@ Not numbered in the first plan; treat as current product:
 
 - **Silence-aware destination:** folder from mean of non-Silence patches; Silence still allowed as a tag (`destination_from_frames` / `decide_destination`).
 - **Reclassify in place:** library UI → `classify_and_ingest` on existing paths; retag; move if class changed. Busy flag must be cleared **before** `list_library` refresh so Reclassify buttons re-enable.
-- **Dialogs:** renderer `#dialog` (`openDialog` / `askText` / `askConfirm`). Do not use `window.prompt` or `window.confirm`. Delete uses danger (red) styling. Settings uses the same dialog (`#dialog-settings`): library root, `ingestMode` move/copy, threshold, dropzone on launch.
-- **App bar:** `#app-bar` logo placeholder, Show/Hide drop zone, Undo/Redo, Settings. `#dropzone` Close hides the drop zone.
-- **Undo/redo:** Python session stack (`undo` / `redo` / `history_state`). Ingest (move restores the original path; copy deletes the library copy), move, rename, delete (stash in `.Fieldy-undo`), star, collections. Cmd/Ctrl+Z.
-- **Playback:** `prepare_playback` + bottom waveform. Temp PCM_16 only. See `.cursor/rules/11-playback.mdc`.
+- **Dialogs:** renderer `#dialog` (`openDialog` / `askText` / `askConfirm`). Do not use `window.prompt` or `window.confirm`. Delete uses danger (red) styling. Settings uses the same dialog (`#dialog-settings`). Changing library folder uses `#library-root-dialog` then relocate vs fresh (`python/core/library_root.py`).
+- **App bar:** persistent `#app-bar` (hiddenInset traffic lights, inline SVG lockup: white 4-bar mark + Fieldy wordmark in one SVG, no orange tile). Dock/taskbar: `electron/icons/icon.png` (macOS `dock.setIcon`) / `icon.ico` (orange `#ff8a3d` tile, same bars). Library actions: Show/Hide drop zone, Undo/Redo, Settings gear. Drop zone **X** hides the drop zone.
+- **Undo/redo:** Python session stack (`undo` / `redo` / `history_state`). Ingest (move restores the original path; copy deletes the library copy), move, rename, delete (stash in `.Fieldy-undo`), star, collections. Batches are one stack entry. Cmd/Ctrl+Z.
+- **Formats:** WAV, AIFF, FLAC, MP3 (`python/core/audio_formats.py`).
+- **Placement why:** last-drop job list only (`placement_why`). Tags column empty copy: “No tags (nothing reached the threshold)”.
+- **Selection:** click row; Cmd/Ctrl, Shift, Cmd+A; Space, arrows, Delete, F2/Enter, S; batch move/star/delete/reclassify/collections.
+- **Playback:** `prepare_playback` + full-width waveform, scrub, mute/level, loop, rewind, pitch/tempo (`playbackRate`; Keep master tune = `preservesPitch`), autoplay, close. Temp PCM_16 only. See `.cursor/rules/11-playback.mdc`.
 - **Name:** Fieldy. Config `.Fieldy.json` / `~/.Fieldy/`. Legacy Soundly Lite paths and ID3 `SoundlyLite` still read.
 
 ## Suggested next work (not scheduled)
 
-Judge classification on real H6/forest takes after reclassify. Then, only if needed: auto-slice long sparse files, YAMNet score-o-gram for “why this folder”, or a packaged build. Do not start those unless the user asks.
+Auto-slice long takes, a score-o-gram UI, or a packaged build — only if the user asks.

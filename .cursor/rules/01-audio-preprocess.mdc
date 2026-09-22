@@ -8,7 +8,7 @@ alwaysApply: false
 
 YAMNet requires **16 kHz mono** waveform values in roughly [-1, 1].
 
-Zoom H6 Studio typically writes **32-bit float WAV**, stereo, 48 kHz or 96 kHz.
+- Zoom H6 Studio typically writes **32-bit float WAV**, stereo, 48 kHz or 96 kHz. Library ingest also accepts AIFF, FLAC, and MP3 (`python/core/audio_formats.py`); originals are never transcoded.
 
 ## Required behavior (`python/core/preprocess.py`)
 

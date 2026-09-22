@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from core.classifier import PATCH_HOP_SECONDS, PATCH_WINDOW_SECONDS, YamnetClassifier
-from core.mapper import decide_destination, foreground_frames, tag_scores, temporal_mix
+from core.mapper import decide_destination, foreground_frames, placement_why, tag_scores, temporal_mix
 from core.preprocess import DEFAULT_CHUNK_SECONDS, audio_info, yamnet_waveform_chunks
 
 
@@ -61,12 +61,16 @@ def classify_waveform(
         threshold=threshold,
     )
     ranked = sorted(clip.items(), key=lambda kv: kv[1], reverse=True)[:5]
-    return {
+    score = clip.get(dest)
+    payload = {
         "destination": dest,
         "tags": matching,
+        "score": None if score is None else float(score),
         "frames": int(frames.shape[0]),
         "top": [{"class": name, "score": score} for name, score in ranked],
     }
+    payload["why"] = placement_why(dest, matching, payload["score"], threshold)
+    return payload
 
 
 def aligned_chunk_seconds(chunk_seconds: float) -> float:
@@ -134,13 +138,13 @@ def classify_path(
     )
     ranked = sorted(clip.items(), key=lambda kv: kv[1], reverse=True)[:5]
     score = clip.get(dest)
-    if score is None and ranked:
-        score = ranked[0][1]
+    why = placement_why(dest, matching, None if score is None else float(score), threshold)
     return {
         "path": path,
         "destination": dest,
         "tags": matching,
         "score": None if score is None else float(score),
+        "why": why,
         "frames": int(frames.shape[0]),
         "top": [{"class": name, "score": score} for name, score in ranked],
     }

@@ -1,18 +1,18 @@
 # Fieldy
 
-Desktop app for automated audio ingest, YAMNet classification, metadata tagging, library management, and in-app playback. Inspired by a highly simplified Soundly workflow: drop Zoom H6 recordings, keep the original 32-bit float WAV untouched, classify from an in-memory 16 kHz mono view using YAMNet’s **0.96 s patches**, then move the original into a folder named after the winning **AudioSet class** (or `Mixed`).
+Desktop app for automated audio ingest, classification, metadata tagging, library management, and in-app playback. Inspired by a highly simplified Soundly workflow: drop recordings, keep the original file untouched, classify from an in-memory 16 kHz mono view using **0.96 s patches**, then move or copy the original into a folder named after the winning **AudioSet class** (or `Mixed`).
 
 Architecture for agents: `.cursor/rules/` (always-on `00-architecture.mdc`) plus `docs/ARCHITECTURE.md`. History of the original 11 phases: `docs/IMPLEMENTATION.md`.
 
-**Status (2026-09-17):** Original phases **1–11 are done**, plus later library UX (Recently added, Starred, collections, drag-out, search/sort/filter). Product name is **Fieldy** (repo `/Users/davidpieri/Fieldy`). Tests: `python -m pytest python/tests -q` only — no Electron UI tests.
+**Status (2026-09-22):** Original phases **1–11 are done**, plus later UX: move/copy ingest, undo/redo, WAV/AIFF/FLAC/MP3, drop-zone progress, library-root relocate/fresh, placement why, row select + keyboard/batch, sample-tool player (level, loop, autoplay, pitch/tempo), window chrome and empty states. Product name is **Fieldy** (repo `/Users/davidpieri/Fieldy`). Tests: `python -m pytest python/tests -q` only — no Electron UI tests.
 
 ## What the app does
 
 - First run: pick a **library root** and whether drops **move or copy**. Folders are AudioSet class names created on demand, plus **`Mixed`**.
-- Drop WAV files or folders. Python classifies them. **Move** (default) tags the original and relocates it; **Copy** (Settings) leaves the original untagged and adds a tagged library file. Undo reverses the last drop.
+- Drop WAV, AIFF, FLAC, or MP3 files or folders. Python classifies them. **Move** (default) tags the original and relocates it; **Copy** (Settings) leaves the original untagged and adds a tagged library file. Undo reverses the last drop. The drop zone shows overall progress while files are added.
 - Destination is the top **non-Silence** class from YAMNet frames (mean-pool active patches so long quiet forest takes are not all filed as Silence). Silence may still appear as a tag.
-- Library explorer: **Libraries** (Recently added, Starred, user collections) plus class folders. Top **app bar** (logo placeholder, Show/Hide drop zone, Undo/Redo, Settings). Move (existing folders only, or drag onto a folder), star, collections (Fieldy-only lists, not disk folders), rename / delete / reclassify / Settings via the shared in-app **dialog** (not `window.prompt` / `window.confirm`). **Re-run YAMNet** on a file or folder. Right-click for Show in Finder and the same actions. Drag originals out to Finder or a DAW.
-- **▶** plays in a bottom waveform. Chromium hears a temp 16-bit copy; the library file stays 32-bit float.
+- Library explorer: **Libraries** (Recently added, Starred, user collections) plus class folders. Top **app bar** (inline logo, Show/Hide drop zone, Undo/Redo, Settings). Click rows to select; Space / arrows / Delete / F2 / S. Move (existing folders only, or drag onto a folder; batch on selection), star, collections (Fieldy-only lists, not disk folders), rename / delete / reclassify / Settings via the shared in-app **dialog** (not `window.prompt` / `window.confirm`). **Reclassify** on a file or folder. Right-click for Show in Finder and the same actions. Drag originals out to Finder or a DAW.
+- **▶** plays in a bottom player (waveform, level, loop, rewind, pitch/tempo, autoplay) when a file is selected. Chromium hears a temp 16-bit copy; the library file stays in its original format.
 
 ## Stack
 
@@ -22,7 +22,7 @@ Architecture for agents: `.cursor/rules/` (always-on `00-architecture.mdc`) plus
 | Backend | Python 3.12 child process, NDJSON over stdin/stdout |
 | Analysis | YAMNet via TensorFlow Hub (native long-file framing) |
 | Audio I/O | `soundfile` + `soxr` for 16 kHz mono analysis; temp PCM_16 for playback only |
-| Tags | `mutagen` WAVE ID3 (`Fieldy`) on the **original** file |
+| Tags | `mutagen` (`Fieldy`) on the **original** file (ID3 on WAV/AIFF/MP3, Vorbis on FLAC) |
 
 ## Dev environment
 
@@ -71,4 +71,4 @@ See `.cursor/rules/03-ipc-bridge.mdc`. Python is long-lived. Renderer never muta
 
 ## Not in the app yet
 
-Auto-slicing long takes into shorter files; YAMNet score-o-gram UI; non-WAV formats; packaged installer.
+Auto-slicing long takes into shorter files; score-o-gram UI; packaged installer.

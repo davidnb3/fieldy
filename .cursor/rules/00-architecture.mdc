@@ -7,18 +7,19 @@ alwaysApply: true
 
 Desktop app: Electron UI + Python child process + YAMNet. Inspired by a simplified Soundly. Repo path: `/Users/davidpieri/Fieldy`. Product name is **Fieldy** (not Soundly Lite). JS API is `window.fieldy`.
 
-## Current product (2026-09-17)
+## Current product (2026-09-22)
 
 Shipped: Phases 1–11 plus later UX. Python pytest only (`python -m pytest python/tests -q`); no Electron UI tests.
 
-- Onboarding: `libraryRoot` plus **move vs copy** (`ingestMode`). Config `{libraryRoot}/.Fieldy.json`, pointer `~/.Fieldy/pointer.json`. Still **reads** legacy `~/.soundly-lite/pointer.json` and `.soundly-lite.json`.
-- Drop WAV/folders → classify full timeline → tag → **move or copy** (`ingestMode` in Settings) into AudioSet class folder or `Mixed`. Undo reverses the drop.
-- Destination = top **foreground** class. Mean-pool **non-Silence** patches. Silence/noise can still be **tags**. Sparse events in long quiet takes should not all land in `Silence/`.
-- Library: **Libraries** sidebar (Recently added, Starred, user **collections**) plus Mixed + existing class folders. Collections are Fieldy-only lists, not disk folders. Search/sort/filter on folders and files. Move (dropdown or drag onto a class folder), drag onto a collection to add, shared in-app `#dialog` (rename, new collection, delete with danger colors, reclassify, Settings — not `window.prompt` / `window.confirm`), star, **Re-run YAMNet**, custom file context menu (Show in Finder, Add to collection). `#app-bar` holds a logo placeholder, Show/Hide drop zone, Undo/Redo, and Settings (`ingestMode` move/copy, library root, threshold, dropzone on launch). Last-drop job list and the drop zone can be closed. Drag original WAVs out of the file list into Finder or a DAW.
-- Playback: ▶ on the row; bottom `#player` peak waveform; Chromium plays a **temp 16-bit WAV**. Original 32-bit float is never transcoded. Not the YAMNet tutorial spectrogram/score-o-gram.
+- Onboarding: `libraryRoot` plus **move vs copy** (`ingestMode`). Config `{libraryRoot}/.Fieldy.json` (`libraryRoot` stored **resolved**), pointer `~/.Fieldy/pointer.json`. Still **reads** legacy `~/.soundly-lite/pointer.json` and `.soundly-lite.json`. Changing the library folder from Settings warns first (`#library-root-dialog`): relocate files (stars, collections, recents remapped) or start fresh at the new path. Nested new/old roots are refused. Selection is cleared after a root change. `resolve_library_file` can re-home `ClassFolder/filename` if a stale path from the old root is sent.
+- Drop WAV, AIFF, FLAC, or MP3 (or folders) → classify full timeline → tag → **move or copy** (`ingestMode` in Settings) into AudioSet class folder or `Mixed`. Undo reverses the drop. Drop zone: colorful stacked audio-file icons (orange + green), **X** to close, overall progress bar plus last-drop job list.
+- Destination = top **foreground** class. Mean-pool **non-Silence** patches. Silence/noise can still be **tags**. Sparse events in long quiet takes should not all land in `Silence/`. Last-drop rows show `placement_why` (`Speech · 0.82` or `Mixed · nothing reached 0.3`). File list does **not** repeat that under the name. Empty tags: **No tags (nothing reached the threshold)**.
+- Library: **Libraries** sidebar (Recently added, Starred, user **collections**) plus Mixed + existing class folders. Collections are Fieldy-only lists, not disk folders. Search/sort/filter on folders and files. Click rows to select (hover light wash, selected stronger; Cmd/Ctrl, Shift, Cmd+A); Space plays, arrows move, Delete deletes, F2/Enter rename, S stars. Move (dropdown or drag onto a class folder), drag onto a collection to add — batch on the selection (one undo step). Shared in-app `#dialog` (rename, new collection, delete with danger colors, reclassify, Settings — not `window.prompt` / `window.confirm`), star, **Reclassify**, custom file context menu (Show in Finder, Add to collection). Persistent `#app-bar` (`titleBarStyle: hiddenInset`): inline Fieldy lockup (white 4-bar waveform + Syne-path wordmark in one SVG, **no orange tile**), Show/Hide drop zone, Undo/Redo, Settings **gear**. Settings: `ingestMode` move/copy, library root, threshold, dropzone on launch, auto-play on select. Accent titles for Libraries / Folders / open-folder heading. Icon buttons: low-opacity accent border on hover. First library view is **Recently added**. Last-drop job list and the drop zone can be closed. Drag originals out of the file list into Finder or a DAW. Drag handle is left of ▶.
+- Mark / OS icon: title bar is `#app-logo` `.logo-lockup` (inline SVG, keep in sync with `electron/renderer/fieldy-logo.svg` glyph). macOS Dock: padded `electron/icons/icon.png` via `app.dock.setIcon(path)` after `app.whenReady` and again after `createWindow` (do **not** use `.icns` with `nativeImage.createFromPath` — it loads empty and the Electron atom comes back). Windows: full-bleed `electron/icons/icon.ico`. Orange `#ff8a3d` tile is for Dock/taskbar only. Do not copy Soundly’s 4-bar speaker mark.
+- Playback: ▶ on the row (also selects the file) or Space; `#player` only while a file is selected (or after Play). Full-width waveform, rewind/play/loop, mute + level, pitch/tempo (`playbackRate` + **Keep master tune** / `preservesPitch`), autoplay checkbox, close. Chromium plays a **temp 16-bit WAV**. Original format is never transcoded. Not the YAMNet tutorial spectrogram/score-o-gram. Do not surface `play()` AbortError in `#library-error`.
 - Start: from repo root `npm start` (forwards to `electron/`).
 
-**Not built:** auto-slicing long takes into regions, in-app YAMNet score-o-gram, packaging/installer, non-WAV formats.
+**Not built:** auto-slicing long takes into regions, in-app YAMNet score-o-gram, packaging/installer.
 
 ## Stack (do not change without an explicit user request)
 
@@ -29,7 +30,7 @@ Shipped: Phases 1–11 plus later UX. Python pytest only (`python -m pytest pyth
 ## Non-negotiables
 
 1. **Folders = AudioSet class names.** Destination is the winning YAMNet/AudioSet class (filesystem-sanitized), created **on demand**. Reserved extra folder: `Mixed` only. Do **not** invent a custom ontology and do **not** park long files in `Long Samples`.
-2. **Pristine originals.** Zoom H6 32-bit float WAV stays that format on disk. YAMNet sees only an **in-memory** 16 kHz mono float32 array. Playback preview is temp+unlink (16-bit WAV under the system temp dir), never a sidecar next to the original.
+2. **Pristine originals.** 32-bit float WAV (and AIFF/FLAC/MP3) stay that format on disk. YAMNet sees only an **in-memory** 16 kHz mono float32 array. Playback preview is temp+unlink (16-bit WAV under the system temp dir), never a sidecar next to the original.
 3. **Long files use YAMNet’s own framing.** 0.96 s windows, 0.48 s hop, scores `(N, 521)`. Run on the **entire** analysis waveform (chunk 16 kHz audio only for RAM, concatenate frame scores). Never skip classification because duration > 60 s.
 4. **Ambiguity.** Destination is the **top foreground** class above threshold. Overlapping labels are tags, not Mixed. `Mixed` only when nothing is above threshold, or **unrelated** classes dominate different **non-Silence** time regions. Write every matching class name as a tag (Silence included when it qualifies).
 5. **Python owns disk.** Renderer calls `window.fieldy.call(method, params)`. Electron main relays NDJSON to Python. No renderer `fs` mutations. Playback bytes: `window.fieldy.readPlaybackFile` only for `fieldy-play-*.wav` under the OS temp dir.
@@ -38,8 +39,8 @@ Shipped: Phases 1–11 plus later UX. Python pytest only (`python -m pytest pyth
 
 - Docs: `docs/ARCHITECTURE.md`, `docs/IMPLEMENTATION.md`
 - Class map / ontology: `config/yamnet_class_map.csv`, `config/audioset_ontology.json`
-- Python: `python/main.py`, `python/ipc/*`, `python/core/*` (`preprocess.py`, `analyze.py`, `mapper.py`, `ontology.py`, `metadata.py`, `ingest.py`, `playback.py`, …)
-- UI: `electron/main.js`, `preload.js`, `renderer/*`; root `package.json` scripts `start` → `electron/`
+- Python: `python/main.py`, `python/ipc/*`, `python/core/*` (`preprocess.py`, `analyze.py`, `mapper.py`, `ontology.py`, `metadata.py`, `ingest.py`, `playback.py`, `audio_formats.py`, `library_root.py`, `history.py`, …)
+- UI: `electron/main.js`, `preload.js`, `renderer/*` (persistent `#app-bar` with inline logo; drop-zone and empty-state copy has no Zoom/YAMNet); root `package.json` scripts `start` → `electron/`
 
 ## IPC (NDJSON)
 
@@ -49,10 +50,12 @@ Event: `{"type":"event","name":"progress","payload"}`
 
 Methods: `ping`, `get_config`, `save_config`, `classify_and_ingest`, `list_library`, `move_file`, `rename_file`, `delete_file`, `set_favorite`, `create_collection`, `add_to_collection`, `prepare_playback`, `history_state`, `undo`, `redo`.
 
+`move_file` / `delete_file` / `set_favorite` / `add_to_collection` accept `paths` for a batch (one history group). `save_config` may include `libraryRootMode`: `relocate` | `fresh`, plus playback prefs `playbackVolume` (0–1), `playbackLoop`, `autoPlayOnSelect`, `playbackMuted`, `playbackPitch`, `playbackPitchEnabled`, `playbackPitchRange` (2|4|8), `playbackPitchResetOnNew`, `playbackPreservePitch`. `save_config` merges with the previous saved config so omitted keys are not reset.
+
 Stdout is JSON only. Logs on stderr.
 
 ## Decision helper
 
-`decide_destination` = top foreground class ≥ threshold. `destination_from_frames` mean-pools non-Silence patches for the folder; tags = max(full-file mean, foreground mean). `temporal_mix` ignores Silence/noise patches. WAV ID3 desc `Fieldy` (still reads old `SoundlyLite`). Playback: `python/core/playback.py`. Add tests rather than rewriting working mapper/preprocess.
+`decide_destination` = top foreground class ≥ threshold. `destination_from_frames` mean-pools non-Silence patches for the folder; tags = max(full-file mean, foreground mean). `temporal_mix` ignores Silence/noise patches. Tags: WAV/AIFF/MP3 ID3 and FLAC Vorbis, desc/key `Fieldy` (still reads old `SoundlyLite`). `placement_why` is the one-line folder reason in the last-drop job list. Playback: `python/core/playback.py`. Add tests rather than rewriting working mapper/preprocess.
 
 When implementing, read the matching feature rule in `.cursor/rules/` and `docs/IMPLEMENTATION.md`.

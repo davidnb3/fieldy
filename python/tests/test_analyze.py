@@ -182,4 +182,5 @@ def test_classify_path_stitches_chunks_instead_of_skipping_60s(tmp_path: Path):
     assert full["frames"] > 100
     assert chunked["frames"] == full["frames"]
     assert chunked["destination"] == "Speech"
+    assert chunked["why"] == "Speech · 0.90"
     assert chunked["destination"] != "Long Samples"

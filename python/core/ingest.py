@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
+from core.audio_formats import is_audio_path
 from core.analyze import classify_path
 from core.classifier import YamnetClassifier
 from core.config import DEFAULTS, assert_legal_destination
@@ -13,7 +14,6 @@ from core.fs_ops import copy_into_folder, move_into_folder
 from core.metadata import read_score, read_tags, write_tags
 from core.recent import is_under_library, record_new_ingest
 
-WAV_SUFFIXES = {".wav", ".wave"}
 ProgressFn = Callable[[dict[str, Any]], None]
 
 _classifier: YamnetClassifier | None = None
@@ -37,7 +37,7 @@ def expand_audio_paths(paths: Iterable[str]) -> list[Path]:
                 sorted(
                     child
                     for child in path.rglob("*")
-                    if child.is_file() and child.suffix.lower() in WAV_SUFFIXES
+                    if child.is_file() and is_audio_path(child)
                 )
             )
         else:
@@ -52,7 +52,7 @@ def ingest_paths(
     classifier: YamnetClassifier | None = None,
     on_progress: ProgressFn | None = None,
 ) -> list[dict[str, Any]]:
-    """Run YAMNet on each WAV, tag the original, move into a legal folder.
+    """Classify each audio file, tag the original, move or copy into a legal folder.
 
     Per-file errors are returned in the job list; the batch continues.
     """
@@ -65,7 +65,9 @@ def ingest_paths(
     chunk_seconds = float(config.get("analyzeChunkSeconds", DEFAULTS["analyzeChunkSeconds"]))
     model = classifier or get_classifier()
     jobs: list[dict[str, Any]] = []
-    for path in expand_audio_paths(paths):
+    paths_found = expand_audio_paths(paths)
+    total = len(paths_found)
+    for index, path in enumerate(paths_found):
         jobs.append(
             _ingest_one(
                 path,
@@ -75,6 +77,8 @@ def ingest_paths(
                 classifier=model,
                 on_progress=on_progress,
                 config=config,
+                file_index=index,
+                file_count=total,
             )
         )
     record_new_ingest(library_root, jobs)
@@ -90,25 +94,45 @@ def _ingest_one(
     classifier: YamnetClassifier,
     on_progress: ProgressFn | None,
     config: dict[str, Any],
+    file_index: int = 0,
+    file_count: int = 1,
 ) -> dict[str, Any]:
     original = str(path)
+
+    def report(stage: str, **extra: Any) -> None:
+        _progress(
+            on_progress,
+            original,
+            stage,
+            fileIndex=file_index,
+            fileCount=file_count,
+            **extra,
+        )
+
     try:
-        _progress(on_progress, original, "inspect")
+        report("inspect")
         resolved = path.expanduser().resolve()
         if not resolved.is_file():
             raise FileNotFoundError(f"not a file: {path}")
-        if resolved.suffix.lower() not in WAV_SUFFIXES:
-            raise ValueError(f"only WAV is supported in MVP: {path}")
-        _progress(on_progress, original, "analyze")
+        if not is_audio_path(resolved):
+            raise ValueError(f"unsupported audio type: {path}")
+        report("analyze", pct=0)
+
+        def on_analyze(done: int, total: int) -> None:
+            pct = 0 if total <= 0 else int(round(100 * min(1.0, (done + 1) / total)))
+            report("analyze", pct=pct)
+
         result = classify_path(
             str(resolved),
             classifier,
             threshold=threshold,
             chunk_seconds=chunk_seconds,
+            on_progress=on_analyze,
         )
         dest = result["destination"]
         tags = list(result["tags"])
         score = result.get("score")
+        why = result.get("why") or ""
         assert_legal_destination(dest)
         was_library = is_under_library(library_root, resolved)
         copy_mode = str(config.get("ingestMode") or "move") == "copy" and not was_library
@@ -117,25 +141,26 @@ def _ingest_one(
         dest_dir = library_root / dest
         copied = False
         if copy_mode:
-            _progress(on_progress, original, "tag")
+            report("tag")
             moved_to = copy_into_folder(str(resolved), str(dest_dir))
             write_tags(moved_to, tags, score=score)
             copied = True
         else:
-            _progress(on_progress, original, "tag")
+            report("tag")
             write_tags(str(resolved), tags, score=score)
             if resolved.parent.resolve() == dest_dir.resolve():
                 moved_to = str(resolved)
             else:
-                _progress(on_progress, original, "move")
+                report("move")
                 moved_to = move_into_folder(str(resolved), str(dest_dir))
-        _progress(on_progress, original, "done", destination=dest, movedTo=moved_to)
+        report("done", destination=dest, movedTo=moved_to, why=why, score=score, pct=100)
         return {
             "path": original,
             "ok": True,
             "destination": dest,
             "tags": tags,
             "score": score,
+            "why": why,
             "movedTo": moved_to,
             "copied": copied,
             "wasLibrary": was_library,
@@ -146,7 +171,7 @@ def _ingest_one(
             "top": result["top"],
         }
     except Exception as exc:  # noqa: BLE001 — batch must continue
-        _progress(on_progress, original, "error", error=str(exc))
+        report("error", error=str(exc))
         return {"path": original, "ok": False, "error": str(exc)}
 
 

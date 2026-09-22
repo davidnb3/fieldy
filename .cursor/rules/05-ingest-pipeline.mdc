@@ -8,25 +8,25 @@ alwaysApply: false
 
 Orchestrator: `python/core/ingest.py` `ingest_paths(paths, config, classifier=..., on_progress=...)`.
 
-WAV only in MVP (`.wav` / `.wave`). Directories are walked for WAV files. Per-file errors stay in the job list; the batch continues.
+WAV, AIFF, FLAC, and MP3 (`.wav` / `.wave` / `.aif` / `.aiff` / `.flac` / `.mp3`). Directories are walked for those types. Per-file errors stay in the job list; the batch continues.
 
 For each path:
 
-1. `inspect` — must be a readable WAV file.
-2. `analyze` — `classify_path` (full timeline, 16 kHz mono in RAM).
+1. `inspect` — must be a readable supported audio file.
+2. `analyze` — `classify_path` (full timeline, 16 kHz mono in RAM). Progress includes `fileIndex`, `fileCount`, and analyze `pct`.
 3. Tags = matching AudioSet class names; dest = top **foreground** class or `Mixed` (`assert_legal_destination`). Silence/noise patches are ignored for the folder when anything real is above threshold.
 4. `tag` — move mode: `write_tags` on the original **before** move. Copy mode (`ingestMode: copy`): `copy2` then tag the **library copy** only.
-5. `move` — `{libraryRoot}/{dest}/` via `unique_dest` (`clip.wav`, `clip_1.wav`, …). If the file is already in that folder, retag in place and do not rename. Copy mode leaves the dropped file in place.
+5. `move` — `{libraryRoot}/{dest}/` via `unique_dest`. If the file is already in that folder, retag in place and do not rename. Copy mode leaves the dropped file in place.
 6. `done` / `error` progress events.
 
-IPC: `classify_and_ingest` `{paths: [...]}` → `{jobs: [...]}`. Needs a saved `libraryRoot`. Progress events: `{file, stage, ...}`. The library UI reuses this for **Re-run YAMNet** / **Reclassify** on files already in the library. After ingest, clear the busy flag **before** refreshing the file list or Re-run YAMNet stays disabled.
+IPC: `classify_and_ingest` `{paths: [...]}` → `{jobs: [...]}` including `why` / `score`. Needs a saved `libraryRoot`. Progress events: `{file, stage, fileIndex, fileCount, pct, why, ...}`. The library UI reuses this for **Reclassify** on files already in the library. After ingest, clear the busy flag **before** refreshing the file list or Reclassify stays disabled.
 
 CLI: `cd python && python -m core.ingest /abs/a.wav /abs/folder` (uses `~/.Fieldy/pointer.json`).
 
 ## Metadata (`python/core/metadata.py`)
 
-WAV ID3 chunk, not RIFF INFO: `TXXX`/`COMM` desc=`Fieldy`. See `.cursor/rules/08-metadata.mdc`. 32-bit float PCM must remain bit-identical aside from the header.
+WAV/AIFF/MP3 ID3 plus FLAC Vorbis, desc/key `Fieldy`. See `.cursor/rules/08-metadata.mdc`. Do not transcode samples.
 
 ## Drop zone UI
 
-See `.cursor/rules/09-dropzone.mdc`. `#dropzone` + `#ingest-jobs`; drop zone closable from `#app-bar`; WAV/folders only; progress then `list_library`.
+See `.cursor/rules/09-dropzone.mdc`. `#dropzone` + `#dropzone-progress` + `#ingest-jobs`; drop zone closable from `#app-bar`.

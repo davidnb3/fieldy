@@ -10,22 +10,28 @@ Sidebar **Libraries**: Recently added, Starred, then user collections, then **Ne
 
 Folder tools (search / sort / filter) apply to `#folder-list` only. File tools apply to the open folder, Recently added, Starred, and collections.
 
-Main `#file-list`: ▶, star, WAV name, duration, tags. Empty states for folder / Recently added / Starred / collection. No matches: “No files match.” File rows share the same column widths so duration, tags, and actions line up.
+Main `#file-list`: drag handle (left of ▶), ▶, star, name, duration, tags. Empty tags: **No tags (nothing reached the threshold)**. Do not put `placement_why` under the filename. Empty states use `.empty-state` cards (not a single muted line): first-run / empty library on Recently added explains the drop zone; empty Recently added with files elsewhere; failed ingest when the last drop added nothing; Starred / collection / folder empties. No matches: “No files match.” File rows share the same column widths so duration, tags, and actions line up.
+
+`list_library` file entries include resolved `path`, `tags`, `score`, and `why` (`placement_why` for the last-drop job list only).
 
 `list_library` returns `recentlyAdded`, `favorites` (Starred UI), and `collections` (`{id,name,files}`). Recently added: new drops only, cap 50. Starred: `{libraryRoot}/.Fieldy-favorites.json`. Collections: `{libraryRoot}/.Fieldy-collections.json`. Move/rename remaps paths; missing files are pruned.
 
-Mutations go through `window.fieldy.call` only:
+Mutations go through `window.fieldy.call` only.
+
+- Click a file row to select it. Cmd/Ctrl-click toggles; Shift-click ranges; Cmd/Ctrl+A selects the visible list. Hover uses a light accent wash; selected rows use a stronger wash.
+- Keyboard: Space play/pause the selected file, arrows move the selection (Shift extends), Delete/Backspace delete, F2 or Enter rename (single file), S star/unstar. Dialogs still use `#dialog`.
+- Batch: move, star, delete, reclassify, and add-to-collection apply to the whole selection (`move_file` / `set_favorite` / `delete_file` / `add_to_collection` accept `paths`). Rename stays one file. Undo treats a batch as one step.
 
 - Move: dropdown of **other folders that already exist**, or drag onto a sidebar class folder (`move_file`). Libraries views are not move destinations. Drag onto a collection **adds** (`add_to_collection`) and does not move the file on disk.
 - Rename: shared `#dialog` (`askText`, not `window.prompt`) → `rename_file`.
 - Delete: `#dialog` confirm with danger colors (`askConfirm`, not `window.confirm`) → `delete_file`.
-- Reclassify: `#reclassify-folder` (**Re-run YAMNet**) and right-click **Reclassify** → `#dialog` confirm, then `classify_and_ingest`. No per-row Reclassify button. Clear ingest busy **before** redrawing the list.
+- Reclassify: `#reclassify-folder` (**Reclassify**; hidden when the view has no files) and right-click **Reclassify** → `#dialog` confirm, then `classify_and_ingest`. No per-row Reclassify button. User-facing copy does not say YAMNet or Zoom. Clear ingest busy **before** redrawing the list.
 - New collection: same `#dialog` prompt.
 - Star: button next to ▶ → `set_favorite`.
 - Collections: `create_collection` / `add_to_collection`. Right-click **Add to collection** (existing or New collection…).
-- Playback: ▶ → `#player`. Right-click menu: Show in Finder, star, rename, delete, reclassify, Add to collection, Move to.
+- Playback: ▶ selects the file and toggles `#player`. Right-click menu: Show in Finder, star, rename, delete, reclassify, Add to collection, Move to.
 - Drag out: grip/filename → `startLibraryDrag`.
 
-Keep the selected folder, Recently added, Starred, or collection across `list_library` refresh when it still exists. Show errors in `#library-error`.
+Keep the selected folder, Recently added, Starred, or collection across `list_library` refresh when it still exists. Default view after onboarding is **Recently added**. Changing `libraryRoot` from Settings clears the file selection. Show errors in `#library-error`.
 
-`#app-bar` is the library chrome: logo placeholder, Show/Hide drop zone, Undo/Redo (`undo` / `redo` IPC), Settings (`#dialog-settings`: library root, `ingestMode` move/copy, threshold, dropzone on launch). Undo covers ingest (move restores the source file; copy removes the library copy), move, rename, delete (stash under `.Fieldy-undo`), star, and collections. Cmd/Ctrl+Z and Shift+Z / Y.
+`#app-bar` is persistent window chrome (`titleBarStyle: hiddenInset` on macOS): **inline** SVG lockup `#app-logo` `.logo-lockup` (white 4-bar mark + Fieldy wordmark in the same SVG), not `<img src>` under `file://`; no orange tile in the title bar). Dock/taskbar uses `electron/icons/icon.png` (macOS dock) / `icon.ico` (orange tile). When the library is open: Show/Hide drop zone, Undo/Redo (`undo` / `redo` IPC; 20px glyphs in 32px buttons), Settings **gear** (`#dialog-settings`: library root, `ingestMode` move/copy, threshold, dropzone on launch, auto-play on select). Undo covers ingest (move restores the source file; copy removes the library copy), move, rename, delete (stash under `.Fieldy-undo`), star, and collections. Cmd/Ctrl+Z and Shift+Z / Y. Accent color on **Libraries**, **Folders**, and `#folder-heading`.

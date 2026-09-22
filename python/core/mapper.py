@@ -29,6 +29,38 @@ def decide_destination(
     return sanitize_class_folder(best_name), matching
 
 
+def placement_why(
+    destination: str,
+    tags: list[str] | None,
+    score: float | None,
+    threshold: float,
+) -> str:
+    """One-line reason a file is in this folder. No model names."""
+    folder = (destination or "").strip() or "Mixed"
+    names = [str(tag).strip() for tag in (tags or []) if str(tag).strip()]
+    if folder != "Mixed":
+        if score is None:
+            return folder
+        return f"{folder} · {float(score):.2f}"
+    if not names:
+        return f"Mixed · nothing reached {_threshold_label(threshold)}"
+    shown = names[:3]
+    if len(names) == 1:
+        return f"Mixed · {shown[0]}"
+    if len(names) == 2:
+        return f"Mixed · {shown[0]} and {shown[1]}"
+    extra = len(names) - 3
+    joined = f"{shown[0]}, {shown[1]}, and {shown[2]}"
+    if extra:
+        return f"Mixed · {joined} +{extra} more"
+    return f"Mixed · {joined}"
+
+
+def _threshold_label(threshold: float) -> str:
+    text = f"{float(threshold):.2f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
 def foreground_frames(
     frame_scores: np.ndarray,
     class_names: list[str],

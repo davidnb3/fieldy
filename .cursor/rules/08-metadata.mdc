@@ -1,30 +1,26 @@
 ---
-description: Tag original WAV headers in place; never transcode 32-bit float PCM
+description: Tag original audio in place; never transcode samples
 globs: python/core/metadata.py
 alwaysApply: false
 ---
 
 # Feature: metadata on the original file (Phase 4)
 
-`python/core/metadata.py` writes classification tags onto the **original WAV**. Analysis 16 kHz audio is never written next to it.
+`python/core/metadata.py` writes classification tags onto the **original file**. Analysis 16 kHz audio is never written next to it.
 
-## Format
+## Formats
 
-- mutagen `WAVE` + ID3 chunk (not a PCM rewrite, not a sidecar `.txt`).
-- `TXXX` desc=`Fieldy`, text = ordered unique class names.
-- `TXXX` desc=`FieldyScore`, text = destination score (`0.9100`). `read_score(path)` returns a float or `None`.
-- `COMM` desc=`Fieldy`, lang=`eng`, text = comma-separated same names (or an explicit `comment=`).
-- `read_tags(path)` returns the `TXXX` list. Untagged file → `[]`.
+- **WAV / AIFF / MP3:** mutagen ID3. `TXXX` desc=`Fieldy`, text = ordered unique class names. `TXXX` desc=`FieldyScore`. `COMM` desc=`Fieldy`, lang=`eng`.
+- **FLAC:** Vorbis comments `Fieldy` / `FieldyScore` (keys are case-insensitive on read). Comment field holds the same names.
+- `read_tags(path)` returns the Fieldy name list. Untagged file → `[]`.
 - Re-tagging replaces previous Fieldy frames and leftover `SoundlyLite` frames.
 - `read_tags` still accepts the old `SoundlyLite` descriptor so existing library files keep their tags.
 
 ## Invariants
 
-- 32-bit float / stereo / 48–96 kHz **samples stay bit-identical**. Tests hash PCM via `soundfile.read`, not the whole file (the header grows).
-- `audio_info` subtype remains `FLOAT`.
+- Samples stay the same container/codec; tagging must not transcode. WAV 32-bit float tests hash PCM via `soundfile.read`. MP3 compare uses a looser tolerance.
 - Tag **before** `shutil.move` in ingest (`python/core/ingest.py`). Copy mode tags the library copy after `copy2`, not the source.
-- MVP is WAVE (Zoom H6). Do not transcode to write tags.
 
 ## Tests
 
-`python/tests/test_metadata.py`: round-trip names including commas (`Trickle, dribble`); replace tags; empty read; PCM checksum unchanged; read legacy `SoundlyLite` TXXX.
+`python/tests/test_metadata.py`: WAVE round-trip including commas; replace tags; empty read; PCM checksum; legacy `SoundlyLite`; FLAC/AIFF/MP3 round-trip.

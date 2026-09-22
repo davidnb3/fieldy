@@ -29,6 +29,45 @@
     "dropzoneOnLaunch": {
       "type": "boolean",
       "default": true
+    },
+    "playbackVolume": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 1,
+      "description": "Chromium output level for the temp 16-bit preview. Does not alter library files."
+    },
+    "playbackLoop": {
+      "type": "boolean",
+      "default": false
+    },
+    "autoPlayOnSelect": {
+      "type": "boolean",
+      "default": false,
+      "description": "Start playback when a single file is selected."
+    },
+    "playbackMuted": { "type": "boolean", "default": false },
+    "playbackPitch": {
+      "type": "number",
+      "minimum": 0.1,
+      "maximum": 800,
+      "default": 100,
+      "description": "Preview playbackRate as a percent (100 = original). Chromium only; library files stay unchanged."
+    },
+    "playbackPitchEnabled": { "type": "boolean", "default": false },
+    "playbackPitchRange": {
+      "type": "integer",
+      "enum": [2, 4, 8],
+      "default": 2
+    },
+    "playbackPitchResetOnNew": {
+      "type": "boolean",
+      "default": true
+    },
+    "playbackPreservePitch": {
+      "type": "boolean",
+      "default": true,
+      "description": "When true, Chromium time-stretches the preview and keeps the original pitch. When false, playbackRate is varispeed (pitch and tempo together)."
     }
   }
 }

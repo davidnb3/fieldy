@@ -1,31 +1,36 @@
 ---
-description: In-app playback — temp 16-bit WAV + peak waveform; original 32-bit float untouched
+description: In-app playback — temp 16-bit WAV + peak waveform; original untouched
 globs: python/core/playback.py,electron/renderer/**,electron/main.js,electron/preload.js
 alwaysApply: false
 ---
 
 # Feature: in-app playback
 
-Chromium often cannot play Zoom H6 **32-bit float** WAV. Fieldy does **not** transcode the library file.
+Chromium often cannot play **32-bit float** WAV (or some other library formats). Fieldy does **not** transcode the library file.
 
 ## Python (`python/core/playback.py`)
 
 `waveform_and_preview(path)` / IPC `prepare_playback {path}`:
 
-- Path must be inside `libraryRoot`.
+- Path must be inside `libraryRoot` (same `resolve_library_file` rules as other mutations).
 - One pass: write `{os.tmpdir()}/fieldy-play-*.wav` as **PCM_16**, same sample rate and channel count as the original; compute min/max **peaks** (default 1400 bins) from the mono mixdown of the original.
 - Cache by path + mtime + size. Temps are unlinked at Python process exit.
-- Original PCM checksum must not change.
+- Original samples must not change. Works for WAV, AIFF, FLAC, MP3.
 
 Do **not** use YAMNet’s tutorial matplotlib figure (16 kHz waveform + log-mel + class score-o-gram) as the player. That is classifier debug, not auditioning.
 
 ## Electron
 
-- Row **▶** toggles play. `#player` footer: Pause/Play, filename, clock, `#player-wave` canvas.
-- Click waveform to seek.
+- `#player` is hidden until a file is selected (or Play is used). Deselecting hides it. Close player hides it until the selection changes or Play is used. Selecting a file loads the temp preview + waveform even if autoplay is off.
+- Layout: full-width `#player-wave` (click to scrub); small time + filename row; then mute/level, pitch/tempo (clock toggle, slider 0.1–200 at 2× / 400 at 4× / 800 at 8×, value, range menu), centered rewind / play / loop icons, Autoplay checkbox, close **X**.
+- Row **▶** selects that file and toggles play. Space play/pauses the selection. Rewind seeks to 0. Loop is `audio.loop`. Level is `<audio>.volume` with a mute icon that restores the last level.
+- Pitch/tempo is Chromium `playbackRate` on the temp preview only. **Keep master tune** (default on, in the 2× menu) is `preservesPitch`; off is varispeed (pitch and tempo together). **Reset pitch slider on new file** (default on) returns the slider to 100.
+- Prefs persist in `.Fieldy.json`: `playbackVolume`, `playbackLoop`, `autoPlayOnSelect`, `playbackMuted`, `playbackPitch`, `playbackPitchEnabled`, `playbackPitchRange`, `playbackPitchResetOnNew`, `playbackPreservePitch`. Persist must not dump `save_config` errors into `#library-error`. Ignore Chromium `play()` AbortError (`interrupted by a call to pause`); do not close the player while `playback.loading`.
+- Selecting a single file (click or arrow keys, not Shift/Cmd ranges) starts playback when autoplay is on.
 - `prepare_playback` then `window.fieldy.readPlaybackFile(previewPath)` → blob URL → `<audio>`.
 - Main `read-playback-file` only allows files under the OS temp dir whose name starts with `fieldy-play-` and ends with `.wav`.
 - CSP: `media-src blob:`.
+- Do not transcode library files; Chromium still plays `fieldy-play-*.wav` temps.
 
 ## Tests
 

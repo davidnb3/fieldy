@@ -54,15 +54,18 @@ def test_save_creates_mixed_and_config_file(tmp_path: Path):
     assert not (library / "Speech").exists()
 
     cfg = store.get()
-    assert cfg["libraryRoot"] == str(library)
+    assert Path(cfg["libraryRoot"]).resolve() == library.resolve()
     assert cfg["confidenceThreshold"] == 0.3
     assert cfg["ingestMode"] == "move"
     assert cfg["dropzoneOnLaunch"] is True
+    assert cfg["playbackVolume"] == 1.0
+    assert cfg["playbackLoop"] is False
+    assert cfg["autoPlayOnSelect"] is False
     assert "needsOnboarding" not in cfg
 
     reloaded = ConfigStore(pointer_path=pointer)
     loaded = reloaded.get()
-    assert loaded["libraryRoot"] == str(library)
+    assert Path(loaded["libraryRoot"]).resolve() == library.resolve()
     assert loaded["analyzeChunkSeconds"] == 60
 
 
@@ -82,5 +85,51 @@ def test_load_accepts_legacy_config_filename(tmp_path: Path):
     pointer = tmp_path / "pointer.json"
     pointer.write_text(json.dumps({"libraryRoot": str(library)}) + "\n", encoding="utf-8")
     loaded = ConfigStore(pointer_path=pointer).get()
-    assert loaded["libraryRoot"] == str(library)
+    assert Path(loaded["libraryRoot"]).resolve() == library.resolve()
     assert "needsOnboarding" not in loaded
+
+
+def test_playback_prefs_round_trip_and_range(tmp_path: Path):
+    cfg = merge_and_validate({"libraryRoot": str(tmp_path / "lib")})
+    assert cfg["playbackVolume"] == 1.0
+    assert cfg["playbackLoop"] is False
+    assert cfg["autoPlayOnSelect"] is False
+    assert cfg["playbackPitch"] == 100.0
+    assert cfg["playbackPitchRange"] == 2
+    assert cfg["playbackPitchResetOnNew"] is True
+    assert cfg["playbackPreservePitch"] is True
+    saved = merge_and_validate(
+        {
+            "libraryRoot": str(tmp_path / "lib"),
+            "playbackVolume": 0.4,
+            "playbackLoop": True,
+            "autoPlayOnSelect": True,
+            "playbackPitch": 140.6,
+            "playbackPitchEnabled": True,
+            "playbackPitchRange": 2,
+            "playbackMuted": True,
+            "playbackPreservePitch": False,
+        }
+    )
+    assert saved["playbackVolume"] == 0.4
+    assert saved["playbackLoop"] is True
+    assert saved["autoPlayOnSelect"] is True
+    assert saved["playbackPitch"] == 140.6
+    assert saved["playbackPitchEnabled"] is True
+    assert saved["playbackMuted"] is True
+    assert saved["playbackPreservePitch"] is False
+    with pytest.raises(ValueError, match="playbackVolume"):
+        merge_and_validate({"libraryRoot": str(tmp_path / "lib"), "playbackVolume": 1.5})
+    with pytest.raises(ValueError, match="autoPlayOnSelect"):
+        merge_and_validate({"libraryRoot": str(tmp_path / "lib"), "autoPlayOnSelect": 1})
+    with pytest.raises(ValueError, match="playbackPitchRange"):
+        merge_and_validate({"libraryRoot": str(tmp_path / "lib"), "playbackPitchRange": 3})
+    wide = merge_and_validate(
+        {
+            "libraryRoot": str(tmp_path / "lib"),
+            "playbackPitchRange": 8,
+            "playbackPitch": 800,
+        }
+    )
+    assert wide["playbackPitchRange"] == 8
+    assert wide["playbackPitch"] == 800

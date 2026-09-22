@@ -2,16 +2,50 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; media-src blob:" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; media-src blob:" />
     <title>Fieldy</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <header id="app-bar">
+        <div id="app-logo">
+          <svg class="logo-lockup" viewBox="0 0 140.03 34" height="22" role="img" aria-label="Fieldy">
+            <title>Fieldy</title>
+            <g class="logo-mark">
+              <rect x="2.93" y="16.20" width="4.85" height="12.40" rx="2.42" fill="#fff"/>
+              <rect x="10.03" y="8.00" width="4.85" height="20.60" rx="2.42" fill="#fff"/>
+              <rect x="17.12" y="4.40" width="4.85" height="24.20" rx="2.42" fill="#fff"/>
+              <rect x="24.23" y="13.60" width="4.85" height="15.00" rx="2.42" fill="#fff"/>
+            </g>
+            <path class="logo-word" fill="#fff" d="M58.23 7.19V10.57H43.05V15.87H55.49V19.04H43.05V26.91H39V7.19ZM65.61 5.11V8.59H61.01V5.11ZM61.31 11.76H65.27V26.91H61.31ZM83.04 21.88H86.88Q86.64 23.43 85.59 24.65Q84.54 25.87 82.74 26.57Q80.94 27.27 78.35 27.27Q75.45 27.27 73.23 26.34Q71 25.41 69.75 23.64Q68.5 21.88 68.5 19.38Q68.5 16.88 69.72 15.09Q70.94 13.31 73.12 12.37Q75.3 11.42 78.23 11.42Q81.21 11.42 83.2 12.37Q85.18 13.31 86.14 15.22Q87.1 17.12 86.95 20.08H72.5Q72.65 21.24 73.37 22.18Q74.08 23.13 75.32 23.68Q76.55 24.22 78.26 24.22Q80.15 24.22 81.41 23.57Q82.68 22.91 83.04 21.88ZM78.04 14.44Q75.85 14.44 74.48 15.4Q73.11 16.36 72.71 17.76H83.01Q82.86 16.24 81.57 15.34Q80.27 14.44 78.04 14.44ZM90.21 5.66H94.17V26.91H90.21ZM105.54 27.24Q103.25 27.24 101.41 26.25Q99.56 25.26 98.5 23.48Q97.43 21.69 97.43 19.35Q97.43 16.94 98.48 15.17Q99.53 13.4 101.36 12.41Q103.19 11.42 105.54 11.42Q107.58 11.42 109.01 12.03Q110.45 12.64 111.33 13.72Q112.21 14.81 112.62 16.24Q113.04 17.67 113.04 19.35Q113.04 20.69 112.61 22.07Q112.18 23.46 111.3 24.64Q110.41 25.81 108.98 26.52Q107.55 27.24 105.54 27.24ZM106.82 24.19Q108.62 24.19 109.93 23.58Q111.24 22.97 111.94 21.88Q112.64 20.78 112.64 19.35Q112.64 17.79 111.92 16.71Q111.21 15.63 109.91 15.05Q108.62 14.47 106.82 14.47Q104.29 14.47 102.89 15.81Q101.48 17.15 101.48 19.35Q101.48 20.81 102.15 21.89Q102.83 22.97 104.03 23.58Q105.23 24.19 106.82 24.19ZM112.64 5.66H116.6V26.91H112.91Q112.82 26.2 112.73 25.09Q112.64 23.98 112.64 23ZM119.5 11.76H123.7L130.26 26.3L126.84 26.91ZM138.03 11.76L127.54 33H123.43L127.91 24.65L133.79 11.76Z"/>
+          </svg>
+        </div>
+        <div class="app-bar-actions hidden" id="library-chrome">
+          <button type="button" id="toggle-dropzone" class="secondary" aria-pressed="true">Hide drop zone</button>
+          <button type="button" id="undo" class="secondary icon-btn" aria-label="Undo" title="Undo" disabled>
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M3 7v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <button type="button" id="redo" class="secondary icon-btn" aria-label="Redo" title="Redo" disabled>
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M21 7v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <button type="button" id="open-settings" class="secondary icon-btn" aria-label="Settings" title="Settings">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+          </button>
+        </div>
+    </header>
     <div id="onboarding" class="screen">
       <div class="onboarding-card">
         <h1>Set up your library</h1>
         <p>
-          Choose a folder on this Mac. Fieldy will sort dropped WAVs into
+          Choose a folder on this Mac. Fieldy will sort dropped audio into
           <a id="audioset-link" class="external-link" href="https://research.google.com/audioset/dataset/index.html" target="_blank" rel="noopener noreferrer">AudioSet class</a>
           folders (for example Siren, Animal, or Speech). The app never creates all AudioSet folders up front.
         </p>
@@ -30,7 +64,7 @@
               <option value="copy">Copy into the library</option>
             </select>
             <p class="hint">
-              Move relocates the WAV into your library. Copy leaves the original where it is and
+              Move relocates the file into your library. Copy leaves the original where it is and
               adds a tagged file to the library. You can change this later in Settings.
             </p>
           </section>
@@ -41,37 +75,45 @@
     </div>
 
     <div id="library" class="screen hidden">
-      <header id="app-bar">
-        <div id="app-logo">
-          <span class="logo-mark" aria-hidden="true"></span>
-          <span class="logo-word">Fieldy</span>
-        </div>
-        <div class="app-bar-actions">
-          <button type="button" id="toggle-dropzone" class="secondary" aria-pressed="true">Hide drop zone</button>
-          <button type="button" id="undo" class="secondary icon-btn" aria-label="Undo" title="Undo" disabled>
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-              <path d="M3 7v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-          <button type="button" id="redo" class="secondary icon-btn" aria-label="Redo" title="Redo" disabled>
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-              <path d="M21 7v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-          <button type="button" id="open-settings" class="secondary">Settings</button>
-        </div>
-      </header>
       <div class="library-body">
         <div id="dropzone">
-          <button type="button" id="close-dropzone" class="secondary">Close</button>
-          <p id="dropzone-title">Drop Zoom H6 WAV files or folders here</p>
-          <p id="dropzone-hint" class="hint">WAV only. Files are tagged and moved into your library. First classify loads YAMNet and can take a minute.</p>
+          <button type="button" id="close-dropzone" class="icon-btn dropzone-close" aria-label="Close drop zone" title="Close drop zone">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <div class="dropzone-art" aria-hidden="true">
+            <svg viewBox="0 0 80 78" width="80" height="78">
+              <g transform="translate(18 6) rotate(-7 24 36)">
+                <path fill="#5ad8a4" d="M10 6h18l12 12v38a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6V12a6 6 0 0 1 6-6z"/>
+                <path fill="#c5f3de" d="M28 6v12h12"/>
+                <circle cx="20" cy="46" r="5.2" fill="#fff"/>
+                <path fill="#fff" d="M24.4 24.5v21.2h-2.5V29.2l10.2 2.1v6.2l-7.7-1.6z"/>
+              </g>
+              <g transform="translate(2 12)">
+                <path fill="#ff8a3d" d="M10 6h18l12 12v38a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6V12a6 6 0 0 1 6-6z"/>
+                <path fill="#ffd3b0" d="M28 6v12h12"/>
+                <circle cx="20" cy="46" r="5.2" fill="#fff"/>
+                <path fill="#fff" d="M24.4 24.5v21.2h-2.5V29.2l10.2 2.1v6.2l-7.7-1.6z"/>
+              </g>
+            </svg>
+          </div>
+          <p id="dropzone-title">Drop audio files or folders here</p>
+          <p id="dropzone-hint" class="hint">WAV, AIFF, FLAC, and MP3. Fieldy listens, tags, and files them into your library. The first file can take a minute while Fieldy gets ready.</p>
+          <div id="dropzone-progress" class="dropzone-progress hidden">
+            <div class="dropzone-progress-meta">
+              <span id="dropzone-progress-label">Getting ready…</span>
+              <span id="dropzone-progress-count"></span>
+            </div>
+            <div class="dropzone-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="dropzone-progress-bar">
+              <div id="dropzone-progress-fill" class="dropzone-progress-fill"></div>
+            </div>
+          </div>
         </div>
       <div id="ingest-panel" class="ingest-panel" hidden>
         <div class="ingest-panel-bar">
           <span class="ingest-panel-title">Last drop</span>
+          <span id="ingest-summary" class="ingest-summary hidden"></span>
           <button type="button" id="close-ingest" class="secondary">Close</button>
         </div>
         <ul id="ingest-jobs" class="job-list"></ul>
@@ -106,7 +148,7 @@
           <div class="file-header">
             <div class="file-header-row">
               <h2 id="folder-heading">Mixed</h2>
-              <button type="button" id="reclassify-folder" class="secondary">Re-run YAMNet</button>
+              <button type="button" id="reclassify-folder" class="secondary">Reclassify</button>
             </div>
             <div class="list-tools">
               <input id="file-search" type="search" placeholder="Search files" spellcheck="false" />
@@ -132,12 +174,71 @@
       </div>
       </div>
       <footer id="player" class="player hidden">
-        <button type="button" id="player-toggle" class="secondary">Pause</button>
-        <div id="player-meta">
-          <div id="player-name"></div>
-          <div id="player-time" class="hint"></div>
+        <canvas id="player-wave" height="52" aria-label="Waveform, click to scrub"></canvas>
+        <div class="player-meta-row">
+          <span id="player-time">0:00 / 0:00</span>
+          <span id="player-name">No file selected</span>
         </div>
-        <canvas id="player-wave" height="72"></canvas>
+        <div class="player-controls">
+          <div class="player-left">
+            <button type="button" id="player-mute" class="player-tool" aria-pressed="false" aria-label="Mute" title="Mute">
+              <svg class="icon-speaker" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/>
+                <path d="M16.5 8.5a5 5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              <svg class="icon-muted" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/>
+                <path d="M17 9l5 6M22 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <input id="player-volume" type="range" min="0" max="100" value="100" step="1" aria-label="Output level" />
+            <button type="button" id="player-pitch-toggle" class="player-tool" aria-pressed="false" aria-label="Pitch and tempo" title="Pitch and tempo">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <circle cx="12" cy="13" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M12 13V9M12 6V4M9 5.2 10 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <input id="player-pitch" type="range" min="0.1" max="200" value="100" step="0.1" aria-label="Pitch and tempo" />
+            <span id="player-pitch-value">100.0</span>
+            <button type="button" id="player-pitch-range" class="player-range-btn" aria-haspopup="menu" aria-expanded="false" title="Pitch range">2x</button>
+          </div>
+          <div class="player-center">
+            <button type="button" id="player-rewind" class="player-tool" aria-label="Go to start" title="Go to start">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path d="M6 6v12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M19 6v12L8 12z" fill="currentColor"/>
+              </svg>
+            </button>
+            <button type="button" id="player-toggle" class="player-play" aria-label="Play" title="Play">
+              <svg class="icon-play" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path d="M8 5v14l12-7z" fill="currentColor"/>
+              </svg>
+              <svg class="icon-pause" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor"/>
+              </svg>
+            </button>
+            <button type="button" id="player-loop" class="player-tool" aria-pressed="false" aria-label="Loop" title="Loop">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path d="M17 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M3 11V9a4 4 0 0 1 4-4h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M7 23l-4-4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M21 13v2a4 4 0 0 1-4 4H3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div class="player-right">
+            <label class="player-autoplay" title="Play the selected file automatically">
+              <span>Autoplay</span>
+              <input id="player-auto" type="checkbox" />
+            </label>
+            <button type="button" id="player-close" class="player-tool" aria-label="Close player" title="Close player">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div id="pitch-menu" class="context-menu hidden" role="menu" hidden></div>
       </footer>
     </div>
     <div id="dialog" class="dialog hidden" role="dialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-body">
@@ -160,22 +261,39 @@
                 <option value="move">Move into the library</option>
                 <option value="copy">Copy into the library</option>
               </select>
-              <p id="settings-ingest-hint" class="hint">Move relocates the WAV. Copy leaves the original in place and tags only the library file. Undo reverses that drop.</p>
+              <p id="settings-ingest-hint" class="hint">Move relocates the file. Copy leaves the original in place and tags only the library file. Undo reverses that drop.</p>
             </div>
             <div class="field">
               <label for="settings-threshold">Classification threshold</label>
               <input id="settings-threshold" type="number" min="0" max="1" step="0.05" aria-describedby="settings-threshold-hint" />
-              <p id="settings-threshold-hint" class="hint">YAMNet scores every AudioSet class from 0 to 1. Only classes at or above this value become tags, and the file’s folder is the top class that clears it. Lower (for example 0.2) tags more classes; higher (for example 0.5) is stricter and more files may land in Mixed. Default is 0.3.</p>
+              <p id="settings-threshold-hint" class="hint">Each AudioSet class is scored from 0 to 1. Only classes at or above this value become tags, and the file’s folder is the top class that clears it. Lower (for example 0.2) tags more classes; higher (for example 0.5) is stricter and more files may land in Mixed. Default is 0.3.</p>
             </div>
             <label class="check-row">
               <input id="settings-dropzone-on-launch" type="checkbox" />
               Show drop zone when Fieldy opens
+            </label>
+            <label class="check-row">
+              <input id="settings-autoplay" type="checkbox" />
+              Play the selected file automatically
             </label>
           </div>
         </div>
         <div class="dialog-actions">
           <button type="button" id="dialog-cancel" class="secondary">Cancel</button>
           <button type="button" id="dialog-ok">OK</button>
+        </div>
+      </div>
+    </div>
+    <div id="library-root-dialog" class="dialog nested-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="library-root-dialog-title" aria-describedby="library-root-dialog-body">
+      <div class="dialog-card">
+        <p id="library-root-dialog-title">Change library folder?</p>
+        <p id="library-root-dialog-body" class="dialog-body">
+          Fieldy will then watch a different folder. The files and folders in your current library will not show up in Fieldy anymore. You can move everything to the new location (stars stay with the files), or leave the current library on disk and start empty in the new folder.
+        </p>
+        <div class="dialog-actions dialog-actions-stack">
+          <button type="button" id="library-root-relocate">Move files to the new folder</button>
+          <button type="button" id="library-root-fresh" class="secondary">Leave files here and start fresh</button>
+          <button type="button" id="library-root-cancel" class="secondary">Cancel</button>
         </div>
       </div>
     </div>

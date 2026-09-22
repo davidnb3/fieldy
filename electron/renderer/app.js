@@ -10,6 +10,8 @@ const redoBtn = document.getElementById("redo");
 const ingestPanel = document.getElementById("ingest-panel");
 const ingestJobs = document.getElementById("ingest-jobs");
 const closeIngest = document.getElementById("close-ingest");
+const ingestSummary = document.getElementById("ingest-summary");
+const libraryChrome = document.getElementById("library-chrome");
 const folderSearch = document.getElementById("folder-search");
 const folderSort = document.getElementById("folder-sort");
 const folderFilter = document.getElementById("folder-filter");
@@ -24,9 +26,20 @@ const saveButton = document.getElementById("save-config");
 const reclassifyFolder = document.getElementById("reclassify-folder");
 const player = document.getElementById("player");
 const playerToggle = document.getElementById("player-toggle");
+const playerLoop = document.getElementById("player-loop");
+const playerRewind = document.getElementById("player-rewind");
+const playerMute = document.getElementById("player-mute");
+const playerAuto = document.getElementById("player-auto");
+const playerClose = document.getElementById("player-close");
 const playerName = document.getElementById("player-name");
 const playerTime = document.getElementById("player-time");
 const playerWave = document.getElementById("player-wave");
+const playerVolume = document.getElementById("player-volume");
+const playerPitch = document.getElementById("player-pitch");
+const playerPitchToggle = document.getElementById("player-pitch-toggle");
+const playerPitchValue = document.getElementById("player-pitch-value");
+const playerPitchRangeBtn = document.getElementById("player-pitch-range");
+const pitchMenu = document.getElementById("pitch-menu");
 const dialog = document.getElementById("dialog");
 const dialogCard = dialog.querySelector(".dialog-card");
 const dialogTitle = document.getElementById("dialog-title");
@@ -40,7 +53,17 @@ const settingsBrowse = document.getElementById("settings-browse");
 const settingsIngestMode = document.getElementById("settings-ingest-mode");
 const settingsThreshold = document.getElementById("settings-threshold");
 const settingsDropzoneOnLaunch = document.getElementById("settings-dropzone-on-launch");
+const settingsAutoplay = document.getElementById("settings-autoplay");
+const libraryRootDialog = document.getElementById("library-root-dialog");
+const libraryRootRelocate = document.getElementById("library-root-relocate");
+const libraryRootFresh = document.getElementById("library-root-fresh");
+const libraryRootCancel = document.getElementById("library-root-cancel");
 const dropzoneHint = document.getElementById("dropzone-hint");
+const dropzoneProgress = document.getElementById("dropzone-progress");
+const dropzoneProgressLabel = document.getElementById("dropzone-progress-label");
+const dropzoneProgressCount = document.getElementById("dropzone-progress-count");
+const dropzoneProgressFill = document.getElementById("dropzone-progress-fill");
+const dropzoneProgressBar = document.getElementById("dropzone-progress-bar");
 const RECENT_VIEW = "Recently added";
 const STARRED_VIEW = "Starred";
 const PINNED_VIEWS = new Set([RECENT_VIEW, STARRED_VIEW]);
@@ -49,11 +72,18 @@ let ingesting = false;
 let libraryBusy = false;
 let historyState = { canUndo: false, canRedo: false };
 let appConfig = null;
+let pendingLibraryRootMode = null;
 let dropzonePrefApplied = false;
+let lastIngestFailed = false;
+let persistPlaybackTimer = 0;
+let lastAutoPlayPath = "";
+let playerClosedByUser = false;
+let playerClosedSelectionKey = "";
 let libraryTree = null;
-let selectedFolder = "Mixed";
+let selectedFolder = RECENT_VIEW;
 const selectedPaths = new Set();
 let selectionAnchor = null;
+let selectionCursor = null;
 let suppressFileClick = false;
 let draggingOut = false;
 let pendingDragPaths = [];
@@ -66,20 +96,27 @@ const playback = {
   peaksMax: [],
   blobUrl: "",
   loading: false,
+  failedPath: "",
+  wantPlay: false,
 };
 playback.audio.addEventListener("timeupdate", drawPlayhead);
 playback.audio.addEventListener("ended", () => {
-  playerToggle.textContent = "Play";
+  if (!playback.audio.loop) syncPlayerTransport();
   drawWaveform();
   renderFiles();
 });
 playback.audio.addEventListener("play", () => {
-  playerToggle.textContent = "Pause";
+  syncPlayerTransport();
   renderFiles();
 });
 playback.audio.addEventListener("pause", () => {
-  playerToggle.textContent = "Play";
+  syncPlayerTransport();
   renderFiles();
+});
+playback.audio.addEventListener("loadedmetadata", () => {
+  applyOutput();
+  applyPitch();
+  drawWaveform();
 });
 
 function showOnboardingError(message) {
@@ -91,8 +128,8 @@ function baseName(filePath) {
   return filePath.split(/[/\\]/).pop() || filePath;
 }
 
-function isWavPath(filePath) {
-  return /\.(wav|wave)$/i.test(filePath);
+function isAudioPath(filePath) {
+  return /\.(wav|wave|aif|aiff|flac|mp3)$/i.test(filePath);
 }
 
 function showIngestPanel() {
@@ -101,6 +138,68 @@ function showIngestPanel() {
 
 function hideIngestPanel() {
   ingestPanel.hidden = true;
+}
+
+const STAGE_LABELS = {
+  queued: "Waiting",
+  inspect: "Checking file",
+  analyze: "Listening",
+  tag: "Writing tags",
+  move: "Saving to library",
+  done: "Done",
+  error: "Couldn’t add",
+};
+
+const STAGE_WEIGHT = {
+  queued: 0,
+  inspect: 0.08,
+  analyze: 0.62,
+  tag: 0.84,
+  move: 0.94,
+  done: 1,
+  error: 1,
+};
+
+let dropzoneProgressHideTimer = 0;
+
+function showDropzoneProgress() {
+  if (!dropzoneProgress) return;
+  window.clearTimeout(dropzoneProgressHideTimer);
+  dropzoneProgress.classList.remove("hidden");
+}
+
+function hideDropzoneProgress() {
+  window.clearTimeout(dropzoneProgressHideTimer);
+  if (!dropzoneProgress) return;
+  dropzoneProgress.classList.add("hidden");
+  if (dropzoneProgressFill) dropzoneProgressFill.style.width = "0%";
+  if (dropzoneProgressBar) dropzoneProgressBar.setAttribute("aria-valuenow", "0");
+}
+
+function hideDropzoneProgressSoon() {
+  window.clearTimeout(dropzoneProgressHideTimer);
+  dropzoneProgressHideTimer = window.setTimeout(hideDropzoneProgress, 700);
+}
+
+function setDropzoneProgress(payload) {
+  if (!dropzoneProgressFill) return;
+  showDropzoneProgress();
+  const stage = payload.stage || "analyze";
+  const n = Math.max(1, Number(payload.fileCount) || 1);
+  const i = Math.max(0, Number(payload.fileIndex) || 0);
+  let inner = STAGE_WEIGHT[stage] ?? 0.5;
+  if (stage === "analyze" && payload.pct != null) {
+    inner = 0.08 + 0.54 * (Math.min(100, Math.max(0, Number(payload.pct))) / 100);
+  }
+  const pct = Math.min(100, Math.round(((i + inner) / n) * 100));
+  dropzoneProgressFill.style.width = `${pct}%`;
+  if (dropzoneProgressBar) dropzoneProgressBar.setAttribute("aria-valuenow", String(pct));
+  const name = baseName(payload.file || "");
+  const label = STAGE_LABELS[stage] || "Working";
+  if (dropzoneProgressLabel) {
+    dropzoneProgressLabel.textContent = name ? `${label} · ${name}` : label;
+  }
+  if (dropzoneProgressCount) dropzoneProgressCount.textContent = `${i + 1} of ${n} · ${pct}%`;
 }
 
 function ensureJobRow(filePath) {
@@ -116,11 +215,26 @@ function ensureJobRow(filePath) {
   return row;
 }
 
+function jobWhyLine(job) {
+  if (job && job.why) return `→ ${job.why}`;
+  if (job && job.destination) return `→ ${job.destination}`;
+  return "→ done";
+}
+
 function setJobStatus(filePath, text, kind) {
   const row = ensureJobRow(filePath);
   const status = row.querySelector(".status");
   status.textContent = text;
   status.className = `status ${kind || "stage"}`;
+  row.classList.toggle("has-error", kind === "err");
+}
+
+function setIngestSummary(text, { danger = false } = {}) {
+  if (!ingestSummary) return;
+  ingestSummary.textContent = text || "";
+  ingestSummary.classList.toggle("hidden", !text);
+  ingestSummary.classList.toggle("tone-danger", Boolean(text && danger));
+  ingestPanel?.classList.toggle("has-errors", Boolean(danger && text));
 }
 
 async function collectIngestPaths(fileList) {
@@ -130,7 +244,7 @@ async function collectIngestPaths(fileList) {
     if (!filePath) continue;
     const info = await window.fieldy.statPath(filePath);
     if (!info?.ok) continue;
-    if (info.isDirectory || (info.isFile && isWavPath(filePath))) {
+    if (info.isDirectory || (info.isFile && isAudioPath(filePath))) {
       accepted.push(filePath);
     }
   }
@@ -248,6 +362,51 @@ function askConfirm({ title, body, okLabel, tone }) {
   });
 }
 
+function sameLibraryPath(a, b) {
+  const left = String(a || "").replace(/\/+$/, "");
+  const right = String(b || "").replace(/\/+$/, "");
+  return left === right;
+}
+
+function openLibraryRootChoice() {
+  return new Promise((resolve) => {
+    if (!libraryRootDialog) {
+      resolve(null);
+      return;
+    }
+    libraryRootDialog.classList.remove("hidden");
+    const finish = (value) => {
+      libraryRootRelocate.removeEventListener("click", onRelocate);
+      libraryRootFresh.removeEventListener("click", onFresh);
+      libraryRootCancel.removeEventListener("click", onCancel);
+      libraryRootDialog.removeEventListener("keydown", onKey);
+      libraryRootDialog.removeEventListener("click", onBackdrop);
+      libraryRootDialog.querySelector(".dialog-card").removeEventListener("click", stopCard);
+      libraryRootDialog.classList.add("hidden");
+      resolve(value);
+    };
+    const onRelocate = () => finish("relocate");
+    const onFresh = () => finish("fresh");
+    const onCancel = () => finish(null);
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onCancel();
+      }
+    };
+    const stopCard = (event) => event.stopPropagation();
+    const onBackdrop = () => onCancel();
+    libraryRootRelocate.addEventListener("click", onRelocate);
+    libraryRootFresh.addEventListener("click", onFresh);
+    libraryRootCancel.addEventListener("click", onCancel);
+    libraryRootDialog.addEventListener("keydown", onKey);
+    libraryRootDialog.querySelector(".dialog-card").addEventListener("click", stopCard);
+    libraryRootDialog.addEventListener("click", onBackdrop);
+    requestAnimationFrame(() => libraryRootRelocate.focus());
+  });
+}
+
 function askRename(currentName) {
   return askText({ title: "Rename file", okLabel: "Rename", value: currentName, selectStem: true });
 }
@@ -269,48 +428,315 @@ function applyAppConfig(cfg, { applyDropzonePref = false } = {}) {
   const copy = appConfig.ingestMode === "copy";
   if (dropzoneHint) {
     dropzoneHint.textContent = copy
-      ? "WAV only. A tagged copy is added to the library; the original stays where it is. First classify loads YAMNet and can take a minute."
-      : "WAV only. Files are tagged and moved into your library. First classify loads YAMNet and can take a minute.";
+      ? "WAV, AIFF, FLAC, and MP3. Fieldy listens, tags, and adds a copy to your library — the original stays where it is. The first file can take a minute while Fieldy gets ready."
+      : "WAV, AIFF, FLAC, and MP3. Fieldy listens, tags, and moves them into your library. The first file can take a minute while Fieldy gets ready.";
   }
   if (applyDropzonePref) {
     setDropzoneOpen(appConfig.dropzoneOnLaunch !== false);
     dropzonePrefApplied = true;
   }
+  applyPlaybackPrefs(appConfig);
+}
+
+function playbackVolumeValue() {
+  const n = Number(appConfig?.playbackVolume);
+  return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1;
+}
+
+function pitchRangeMax() {
+  const rng = Number(appConfig?.playbackPitchRange);
+  return rng === 4 || rng === 8 ? rng * 100 : 200;
+}
+
+function playbackPitchValue() {
+  const max = pitchRangeMax();
+  const n = Number(appConfig?.playbackPitch);
+  if (!Number.isFinite(n)) return 100;
+  return Math.min(max, Math.max(0.1, n));
+}
+
+function applyOutput() {
+  const muted = Boolean(appConfig?.playbackMuted);
+  const volume = playbackVolumeValue();
+  playback.audio.volume = muted ? 0 : volume;
+  if (playerVolume) playerVolume.value = String(Math.round((muted ? 0 : volume) * 100));
+  if (playerMute) {
+    playerMute.setAttribute("aria-pressed", muted ? "true" : "false");
+    playerMute.setAttribute("aria-label", muted ? "Unmute" : "Mute");
+    playerMute.title = muted ? "Unmute" : "Mute";
+  }
+}
+
+function applyPitch() {
+  const enabled = Boolean(appConfig?.playbackPitchEnabled);
+  const percent = playbackPitchValue();
+  const rate = enabled ? Math.min(16, Math.max(0.0625, percent / 100)) : 1;
+  const keepTune = appConfig?.playbackPreservePitch !== false;
+  try {
+    playback.audio.preservesPitch = keepTune;
+    playback.audio.webkitPreservesPitch = keepTune;
+    playback.audio.mozPreservesPitch = keepTune;
+  } catch {
+    /* older Chromium */
+  }
+  try {
+    playback.audio.playbackRate = rate;
+  } catch {
+    playback.audio.playbackRate = 1;
+  }
+  if (playerPitch) {
+    playerPitch.max = String(pitchRangeMax());
+    playerPitch.value = String(percent);
+    playerPitch.classList.toggle("is-off", !enabled);
+  }
+  if (playerPitchValue) playerPitchValue.textContent = percent.toFixed(1);
+  if (playerPitchToggle) {
+    playerPitchToggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+  }
+  if (playerPitchRangeBtn) {
+    const rng = Number(appConfig?.playbackPitchRange) === 4 || Number(appConfig?.playbackPitchRange) === 8
+      ? Number(appConfig.playbackPitchRange)
+      : 2;
+    playerPitchRangeBtn.textContent = `${rng}x`;
+  }
+}
+
+function applyPlaybackPrefs(cfg) {
+  playback.audio.loop = Boolean(cfg?.playbackLoop);
+  if (playerLoop) playerLoop.setAttribute("aria-pressed", cfg?.playbackLoop ? "true" : "false");
+  if (playerAuto) playerAuto.checked = Boolean(cfg?.autoPlayOnSelect);
+  if (settingsAutoplay) settingsAutoplay.checked = Boolean(cfg?.autoPlayOnSelect);
+  applyOutput();
+  applyPitch();
+  syncPlayerTransport();
+}
+
+function syncPlayerTransport() {
+  const playing = Boolean(playback.audio.src) && !playback.audio.paused;
+  if (playerToggle) {
+    playerToggle.classList.toggle("is-playing", playing);
+    playerToggle.setAttribute("aria-label", playing ? "Pause" : "Play");
+    playerToggle.title = playing ? "Pause" : "Play";
+    playerToggle.disabled = playback.loading;
+  }
+  if (playerRewind) playerRewind.disabled = !playback.audio.src || playback.loading;
+}
+
+function configPayload(extra = {}) {
+  if (!appConfig) return extra;
+  return {
+    libraryRoot: appConfig.libraryRoot,
+    ingestMode: appConfig.ingestMode,
+    confidenceThreshold: appConfig.confidenceThreshold,
+    dropzoneOnLaunch: appConfig.dropzoneOnLaunch,
+    analyzeChunkSeconds: appConfig.analyzeChunkSeconds,
+    playbackVolume: playbackVolumeValue(),
+    playbackLoop: Boolean(appConfig.playbackLoop),
+    autoPlayOnSelect: Boolean(appConfig.autoPlayOnSelect),
+    playbackMuted: Boolean(appConfig.playbackMuted),
+    playbackPitch: playbackPitchValue(),
+    playbackPitchEnabled: Boolean(appConfig.playbackPitchEnabled),
+    playbackPitchRange: Number(appConfig.playbackPitchRange) === 4 || Number(appConfig.playbackPitchRange) === 8
+      ? Number(appConfig.playbackPitchRange)
+      : 2,
+    playbackPitchResetOnNew: appConfig.playbackPitchResetOnNew !== false,
+    playbackPreservePitch: appConfig.playbackPreservePitch !== false,
+    ...extra,
+  };
+}
+
+function persistPlaybackPrefs() {
+  if (!appConfig) return;
+  window.clearTimeout(persistPlaybackTimer);
+  persistPlaybackTimer = window.setTimeout(() => {
+    window.fieldy.call("save_config", configPayload()).catch((err) => {
+      console.error(err);
+    });
+  }, 280);
+}
+
+function setPlaybackLoop(on) {
+  if (!appConfig) return;
+  appConfig.playbackLoop = Boolean(on);
+  playback.audio.loop = appConfig.playbackLoop;
+  if (playerLoop) playerLoop.setAttribute("aria-pressed", appConfig.playbackLoop ? "true" : "false");
+  persistPlaybackPrefs();
+}
+
+function setAutoPlayOnSelect(on) {
+  if (!appConfig) return;
+  appConfig.autoPlayOnSelect = Boolean(on);
+  if (playerAuto) playerAuto.checked = appConfig.autoPlayOnSelect;
+  if (settingsAutoplay) settingsAutoplay.checked = appConfig.autoPlayOnSelect;
+  persistPlaybackPrefs();
+}
+
+function setPlaybackVolume(value, { fromSlider = false } = {}) {
+  const volume = Math.min(1, Math.max(0, Number(value)));
+  if (!appConfig) {
+    playback.audio.volume = volume;
+    if (playerVolume) playerVolume.value = String(Math.round(volume * 100));
+    return;
+  }
+  if (fromSlider) {
+    appConfig.playbackMuted = volume === 0;
+    if (volume > 0) appConfig.playbackVolume = volume;
+  } else {
+    appConfig.playbackVolume = volume;
+    appConfig.playbackMuted = volume === 0;
+  }
+  applyOutput();
+  persistPlaybackPrefs();
+}
+
+function toggleMute() {
+  if (!appConfig) return;
+  if (appConfig.playbackMuted || playbackVolumeValue() === 0) {
+    appConfig.playbackMuted = false;
+    if (playbackVolumeValue() === 0) appConfig.playbackVolume = 1;
+  } else {
+    appConfig.playbackMuted = true;
+  }
+  applyOutput();
+  persistPlaybackPrefs();
+}
+
+function setPitchEnabled(on) {
+  if (!appConfig) return;
+  appConfig.playbackPitchEnabled = Boolean(on);
+  applyPitch();
+  persistPlaybackPrefs();
+}
+
+function setPitchPercent(value) {
+  if (!appConfig) return;
+  appConfig.playbackPitch = Math.min(pitchRangeMax(), Math.max(0.1, Number(value)));
+  applyPitch();
+  persistPlaybackPrefs();
+}
+
+function setPitchRange(range) {
+  if (!appConfig) return;
+  const rng = range === 4 || range === 8 ? range : 2;
+  appConfig.playbackPitchRange = rng;
+  appConfig.playbackPitch = Math.min(rng * 100, playbackPitchValue());
+  applyPitch();
+  persistPlaybackPrefs();
+}
+
+function hidePitchMenu() {
+  if (!pitchMenu) return;
+  pitchMenu.classList.add("hidden");
+  pitchMenu.hidden = true;
+  pitchMenu.replaceChildren();
+  if (playerPitchRangeBtn) playerPitchRangeBtn.setAttribute("aria-expanded", "false");
+}
+
+function openPitchMenu() {
+  if (!pitchMenu || !playerPitchRangeBtn) return;
+  const current = Number(appConfig?.playbackPitchRange) === 4 || Number(appConfig?.playbackPitchRange) === 8
+    ? Number(appConfig.playbackPitchRange)
+    : 2;
+  const resetOn = appConfig?.playbackPitchResetOnNew !== false;
+  const keepTune = appConfig?.playbackPreservePitch !== false;
+  pitchMenu.replaceChildren();
+  for (const rng of [2, 4, 8]) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "context-item";
+    item.setAttribute("role", "menuitem");
+    item.textContent = `${rng === current ? "✓ " : ""}${rng}x`;
+    item.addEventListener("click", () => {
+      hidePitchMenu();
+      setPitchRange(rng);
+    });
+    pitchMenu.appendChild(item);
+  }
+  const sep = document.createElement("div");
+  sep.className = "context-sep";
+  pitchMenu.appendChild(sep);
+  const tune = document.createElement("button");
+  tune.type = "button";
+  tune.className = "context-item";
+  tune.setAttribute("role", "menuitem");
+  tune.textContent = `${keepTune ? "✓ " : ""}Keep master tune`;
+  tune.title = "When on, speed changes without shifting pitch. When off, faster is higher and slower is lower.";
+  tune.addEventListener("click", () => {
+    if (!appConfig) return;
+    appConfig.playbackPreservePitch = !keepTune;
+    hidePitchMenu();
+    applyPitch();
+    persistPlaybackPrefs();
+  });
+  pitchMenu.appendChild(tune);
+  const reset = document.createElement("button");
+  reset.type = "button";
+  reset.className = "context-item";
+  reset.setAttribute("role", "menuitem");
+  reset.textContent = `${resetOn ? "✓ " : ""}Reset pitch slider on new file`;
+  reset.addEventListener("click", () => {
+    if (!appConfig) return;
+    appConfig.playbackPitchResetOnNew = !resetOn;
+    hidePitchMenu();
+    persistPlaybackPrefs();
+  });
+  pitchMenu.appendChild(reset);
+  pitchMenu.classList.remove("hidden");
+  pitchMenu.hidden = false;
+  playerPitchRangeBtn.setAttribute("aria-expanded", "true");
+  const rect = playerPitchRangeBtn.getBoundingClientRect();
+  const pad = 8;
+  pitchMenu.style.left = `${Math.min(rect.left, window.innerWidth - pitchMenu.offsetWidth - pad)}px`;
+  pitchMenu.style.top = `${Math.max(pad, rect.top - pitchMenu.offsetHeight - 6)}px`;
 }
 
 async function openSettingsDialog() {
   const cfg = appConfig || (await window.fieldy.call("get_config"));
   if (!cfg || cfg.needsOnboarding) return;
+  pendingLibraryRootMode = null;
   settingsLibraryRoot.value = cfg.libraryRoot || "";
   settingsIngestMode.value = cfg.ingestMode === "copy" ? "copy" : "move";
   settingsThreshold.value = String(cfg.confidenceThreshold ?? 0.3);
   settingsDropzoneOnLaunch.checked = cfg.dropzoneOnLaunch !== false;
+  if (settingsAutoplay) settingsAutoplay.checked = Boolean(cfg.autoPlayOnSelect);
   const ok = await openDialog({
     title: "Settings",
     okLabel: "Save",
     settings: true,
   });
-  if (!ok) return;
+  if (!ok) {
+    pendingLibraryRootMode = null;
+    return;
+  }
   const threshold = Number(settingsThreshold.value);
   if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
     showLibraryError("Threshold must be between 0 and 1.");
+    pendingLibraryRootMode = null;
     return;
   }
   const libraryRoot = settingsLibraryRoot.value.trim();
   if (!libraryRoot) {
     showLibraryError("Choose a library folder first.");
+    pendingLibraryRootMode = null;
     return;
   }
+  const rootChanged = !sameLibraryPath(libraryRoot, cfg.libraryRoot);
   try {
     await window.fieldy.call("save_config", {
-      libraryRoot,
-      ingestMode: settingsIngestMode.value,
-      confidenceThreshold: threshold,
-      dropzoneOnLaunch: settingsDropzoneOnLaunch.checked,
-      ...(Number.isFinite(Number(cfg.analyzeChunkSeconds))
-        ? { analyzeChunkSeconds: Number(cfg.analyzeChunkSeconds) }
-        : {}),
+      ...configPayload({
+        libraryRoot,
+        ingestMode: settingsIngestMode.value,
+        confidenceThreshold: threshold,
+        dropzoneOnLaunch: settingsDropzoneOnLaunch.checked,
+        autoPlayOnSelect: Boolean(settingsAutoplay?.checked),
+      }),
+      ...(rootChanged ? { libraryRootMode: pendingLibraryRootMode || "fresh" } : {}),
     });
+    if (rootChanged) {
+      selectedPaths.clear();
+      selectionAnchor = null;
+      selectionCursor = null;
+    }
     applyAppConfig(
       {
         ...cfg,
@@ -318,12 +744,15 @@ async function openSettingsDialog() {
         ingestMode: settingsIngestMode.value,
         confidenceThreshold: threshold,
         dropzoneOnLaunch: settingsDropzoneOnLaunch.checked,
+        autoPlayOnSelect: Boolean(settingsAutoplay?.checked),
       },
       { applyDropzonePref: true }
     );
     await refresh();
   } catch (err) {
     showLibraryError(err.message || String(err));
+  } finally {
+    pendingLibraryRootMode = null;
   }
 }
 
@@ -392,9 +821,9 @@ function bytesToWavBlob(data) {
 }
 
 function drawWaveform() {
-  if (!playerWave || player.classList.contains("hidden")) return;
+  if (!playerWave) return;
   const cssWidth = playerWave.clientWidth || 600;
-  const cssHeight = 72;
+  const cssHeight = 52;
   const ratio = window.devicePixelRatio || 1;
   playerWave.width = Math.floor(cssWidth * ratio);
   playerWave.height = Math.floor(cssHeight * ratio);
@@ -407,18 +836,19 @@ function drawWaveform() {
   const mins = playback.peaksMin;
   const maxs = playback.peaksMax;
   const n = Math.min(mins.length, maxs.length);
-  if (!n) return;
-  const mid = cssHeight / 2;
-  ctx.fillStyle = "#ff8a3d";
-  for (let i = 0; i < n; i += 1) {
-    const x = (i / n) * cssWidth;
-    const w = Math.max(1, cssWidth / n);
-    const lo = mid - maxs[i] * (mid - 4);
-    const hi = mid - mins[i] * (mid - 4);
-    ctx.fillRect(x, Math.min(lo, hi), w, Math.max(1, Math.abs(hi - lo)));
+  if (n) {
+    const mid = cssHeight / 2;
+    ctx.fillStyle = "#ff8a3d";
+    for (let i = 0; i < n; i += 1) {
+      const x = (i / n) * cssWidth;
+      const w = Math.max(1, cssWidth / n);
+      const lo = mid - maxs[i] * (mid - 4);
+      const hi = mid - mins[i] * (mid - 4);
+      ctx.fillRect(x, Math.min(lo, hi), w, Math.max(1, Math.abs(hi - lo)));
+    }
   }
   const dur = playback.audio.duration;
-  if (dur && Number.isFinite(dur) && dur > 0) {
+  if (n && dur && Number.isFinite(dur) && dur > 0) {
     const x = (playback.audio.currentTime / dur) * cssWidth;
     ctx.strokeStyle = "#e8eaed";
     ctx.beginPath();
@@ -437,18 +867,93 @@ function drawPlayhead() {
   drawWaveform();
 }
 
-async function togglePlayback(file) {
+function selectionKey() {
+  return [...selectedPaths].sort().join("\n");
+}
+
+function showPlayer() {
+  playerClosedByUser = false;
+  playerClosedSelectionKey = "";
+  player?.classList.remove("hidden");
+  requestAnimationFrame(() => drawWaveform());
+}
+
+function closePlayer({ byUser = false } = {}) {
   if (playback.loading) return;
+  if (playback.audio.src && !playback.audio.paused) playback.audio.pause();
+  player?.classList.add("hidden");
+  if (byUser) {
+    playerClosedByUser = true;
+    playerClosedSelectionKey = selectionKey();
+  } else {
+    playerClosedByUser = false;
+    playerClosedSelectionKey = "";
+  }
+}
+
+function syncPlayerForSelection() {
+  const file = primarySelectedFile();
+  if (playback.loading) {
+    if (file || playback.path) player?.classList.remove("hidden");
+    return;
+  }
+  if (!file) {
+    closePlayer({ byUser: false });
+    return;
+  }
+  if (playerClosedByUser && playerClosedSelectionKey === selectionKey()) return;
+  playerClosedByUser = false;
+  playerClosedSelectionKey = "";
+  player?.classList.remove("hidden");
+  const shouldPlay = Boolean(appConfig?.autoPlayOnSelect) && selectedPaths.size === 1;
+  if (playback.path === file.path && playback.audio.src) {
+    requestAnimationFrame(() => drawWaveform());
+    if (shouldPlay && playback.audio.paused && lastAutoPlayPath !== file.path) {
+      lastAutoPlayPath = file.path;
+      playback.audio.currentTime = 0;
+      playPreview();
+    }
+    return;
+  }
+  if (playback.failedPath === file.path) {
+    requestAnimationFrame(() => drawWaveform());
+    return;
+  }
+  if (shouldPlay) lastAutoPlayPath = file.path;
+  loadPreview(file, { play: shouldPlay, restart: shouldPlay });
+}
+
+function isPlayAbort(err) {
+  const message = err && err.message ? String(err.message) : "";
+  return Boolean(err && (err.name === "AbortError" || message.includes("interrupted by a call to pause")));
+}
+
+async function playPreview() {
+  try {
+    await playback.audio.play();
+    applyPitch();
+  } catch (err) {
+    if (isPlayAbort(err)) return;
+    throw err;
+  }
+}
+
+async function loadPreview(file, { play = false, restart = false } = {}) {
+  if (!file) return;
+  if (play) playback.wantPlay = true;
+  if (playback.loading) return;
+  player?.classList.remove("hidden");
   if (file.path === playback.path && playback.audio.src) {
-    if (playback.audio.paused) await playback.audio.play();
-    else playback.audio.pause();
+    if (restart) playback.audio.currentTime = 0;
+    if (playback.wantPlay || play) await playPreview();
+    playback.wantPlay = false;
+    drawWaveform();
     return;
   }
   playback.loading = true;
-  player.classList.remove("hidden");
   playerName.textContent = `Loading ${file.name}…`;
   playerTime.textContent = "";
-  playerToggle.disabled = true;
+  syncPlayerTransport();
   renderFiles();
   try {
     const prepared = await window.fieldy.call("prepare_playback", { path: file.path });
@@ -457,29 +962,112 @@ async function togglePlayback(file) {
     playback.blobUrl = URL.createObjectURL(bytesToWavBlob(bytes));
     playback.path = file.path;
     playback.name = file.name;
+    playback.failedPath = "";
     playback.peaksMin = prepared.peaksMin || [];
     playback.peaksMax = prepared.peaksMax || [];
+    if (appConfig?.playbackPitchResetOnNew !== false) {
+      appConfig.playbackPitch = 100;
+      persistPlaybackPrefs();
+    }
+    playback.audio.pause();
+    playback.audio.loop = Boolean(appConfig?.playbackLoop);
     playback.audio.src = playback.blobUrl;
+    applyOutput();
+    applyPitch();
     playerName.textContent = file.name;
-    playerToggle.disabled = false;
-    playerToggle.textContent = "Pause";
     drawWaveform();
-    await playback.audio.play();
+    if (play || playback.wantPlay) await playPreview();
   } catch (err) {
+    if (isPlayAbort(err)) return;
+    playback.failedPath = file.path;
     showLibraryError(err.message || String(err));
-    playerName.textContent = file.name;
+    playerName.textContent = file.name || "No file selected";
   } finally {
+    playback.wantPlay = false;
     playback.loading = false;
-    playerToggle.disabled = false;
+    syncPlayerTransport();
     renderFiles();
   }
 }
 
+async function playFile(file, { restart = false } = {}) {
+  showPlayer();
+  playback.wantPlay = true;
+  await loadPreview(file, { play: true, restart });
+}
+
+async function togglePlayback(file) {
+  if (!file) {
+    file = primarySelectedFile();
+    if (!file) return;
+  }
+  showPlayer();
+  if (file.path === playback.path && playback.audio.src && !playback.loading) {
+    if (playback.audio.paused) await playPreview();
+    else playback.audio.pause();
+    return;
+  }
+  playback.wantPlay = true;
+  await loadPreview(file, { play: true });
+}
+
 playerToggle.addEventListener("click", () => {
-  if (!playback.audio.src) return;
-  if (playback.audio.paused) playback.audio.play();
-  else playback.audio.pause();
+  togglePlayback(primarySelectedFile() || (playback.path ? { path: playback.path, name: playback.name } : null));
 });
+
+if (playerRewind) {
+  playerRewind.addEventListener("click", () => {
+    if (!playback.audio.src) return;
+    playback.audio.currentTime = 0;
+    drawWaveform();
+  });
+}
+
+if (playerLoop) {
+  playerLoop.addEventListener("click", () => {
+    setPlaybackLoop(playerLoop.getAttribute("aria-pressed") !== "true");
+  });
+}
+
+if (playerAuto) {
+  playerAuto.addEventListener("change", () => {
+    setAutoPlayOnSelect(playerAuto.checked);
+  });
+}
+
+if (playerClose) {
+  playerClose.addEventListener("click", () => closePlayer({ byUser: true }));
+}
+
+if (playerMute) {
+  playerMute.addEventListener("click", () => toggleMute());
+}
+
+if (playerVolume) {
+  playerVolume.addEventListener("input", () => {
+    setPlaybackVolume(Number(playerVolume.value) / 100, { fromSlider: true });
+  });
+}
+
+if (playerPitchToggle) {
+  playerPitchToggle.addEventListener("click", () => {
+    setPitchEnabled(playerPitchToggle.getAttribute("aria-pressed") !== "true");
+  });
+}
+
+if (playerPitch) {
+  playerPitch.addEventListener("input", () => {
+    setPitchPercent(Number(playerPitch.value));
+  });
+}
+
+if (playerPitchRangeBtn) {
+  playerPitchRangeBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (pitchMenu && !pitchMenu.hidden) hidePitchMenu();
+    else openPitchMenu();
+  });
+}
 
 playerWave.addEventListener("click", (event) => {
   const dur = playback.audio.duration;
@@ -498,18 +1086,42 @@ async function refresh() {
   if (!cfg || cfg.needsOnboarding) {
     onboarding.classList.remove("hidden");
     library.classList.add("hidden");
+    libraryChrome?.classList.add("hidden");
     return;
   }
   onboarding.classList.add("hidden");
   library.classList.remove("hidden");
+  libraryChrome?.classList.remove("hidden");
   applyAppConfig(cfg, { applyDropzonePref: !dropzonePrefApplied });
   const tree = await window.fieldy.call("list_library");
   renderTree(tree);
   await syncHistory();
+  drawWaveform();
+}
+
+function libraryHasAudio(tree = libraryTree) {
+  return (tree?.folders || []).some((folder) => (folder.files || []).length > 0);
 }
 
 function folderCount(folder) {
   return folder.files?.length || 0;
+}
+
+function appendEmptyState(parent, { title, body, danger = false } = {}) {
+  const wrap = document.createElement("div");
+  wrap.className = "empty-state" + (danger ? " empty-state-danger" : "");
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  const copy = document.createElement("p");
+  copy.textContent = body;
+  wrap.append(heading, copy);
+  parent.appendChild(wrap);
+}
+
+function dropzoneHintForEmpty() {
+  return dropzoneOpen()
+    ? "Drop WAV, AIFF, FLAC, or MP3 on the drop zone above. Fieldy tags them and files them into AudioSet class folders."
+    : "Show the drop zone from the toolbar, then drop WAV, AIFF, FLAC, or MP3. Fieldy tags them and files them into AudioSet class folders.";
 }
 
 function visibleFolders() {
@@ -613,6 +1225,7 @@ function appendFolderButton(parent, label, count, selected, droppable, extra = {
     if (selectedFolder !== next) {
       selectedPaths.clear();
       selectionAnchor = null;
+      selectionCursor = null;
     }
     selectedFolder = next;
     showLibraryError("");
@@ -739,9 +1352,7 @@ async function addPathsToCollection(collectionId, paths) {
   showLibraryError("");
   renderFiles();
   try {
-    for (const path of paths) {
-      await window.fieldy.call("add_to_collection", { id: collectionId, path });
-    }
+    await window.fieldy.call("add_to_collection", { id: collectionId, paths });
   } catch (err) {
     showLibraryError(err.message || String(err));
   } finally {
@@ -755,7 +1366,7 @@ async function addPathsToCollection(collectionId, paths) {
   }
 }
 
-async function addFileToNewCollection(file) {
+async function addFilesToNewCollection(files) {
   const name = await askText({
     title: "New collection",
     okLabel: "Create",
@@ -764,7 +1375,7 @@ async function addFileToNewCollection(file) {
   if (!name) return;
   try {
     const created = await window.fieldy.call("create_collection", { name });
-    await addPathsToCollection(created.id, [file.path]);
+    await addPathsToCollection(created.id, files.map((file) => file.path));
   } catch (err) {
     showLibraryError(err.message || String(err));
   }
@@ -782,6 +1393,7 @@ async function createNewCollection() {
     selectedFolder = COLLECTION_PREFIX + created.id;
     selectedPaths.clear();
     selectionAnchor = null;
+    selectionCursor = null;
     await refresh();
   } catch (err) {
     showLibraryError(err.message || String(err));
@@ -795,9 +1407,7 @@ async function moveLibraryPaths(paths, destFolder) {
   showLibraryError("");
   renderFiles();
   try {
-    for (const src of paths) {
-      await window.fieldy.call("move_file", { src, destFolder });
-    }
+    await window.fieldy.call("move_file", { paths, destFolder });
   } catch (err) {
     showLibraryError(err.message || String(err));
   } finally {
@@ -908,6 +1518,7 @@ function pruneSelection() {
     if (!allowed.has(filePath)) selectedPaths.delete(filePath);
   }
   if (selectionAnchor && !allowed.has(selectionAnchor)) selectionAnchor = null;
+  if (selectionCursor && !allowed.has(selectionCursor)) selectionCursor = null;
 }
 
 function isToggleModifier(event) {
@@ -924,23 +1535,85 @@ function selectOnNameClick(filePath, event) {
     const end = Math.max(from, to);
     if (!isToggleModifier(event)) selectedPaths.clear();
     for (let i = start; i <= end; i += 1) selectedPaths.add(visible[i]);
+    selectionCursor = filePath;
     return;
   }
   if (isToggleModifier(event)) {
     if (selectedPaths.has(filePath)) selectedPaths.delete(filePath);
     else selectedPaths.add(filePath);
     selectionAnchor = filePath;
+    selectionCursor = filePath;
     return;
   }
   selectedPaths.clear();
   selectedPaths.add(filePath);
   selectionAnchor = filePath;
+  selectionCursor = filePath;
+}
+
+function chosenFiles() {
+  return visibleFiles().filter((file) => selectedPaths.has(file.path));
+}
+
+function actionTargets(file) {
+  if (file && selectedPaths.has(file.path) && selectedPaths.size > 1) {
+    return chosenFiles();
+  }
+  return file ? [file] : chosenFiles();
+}
+
+function primarySelectedFile() {
+  const files = chosenFiles();
+  if (!files.length) return null;
+  return files.find((file) => file.path === selectionAnchor) || files[0];
+}
+
+function selectAllVisible() {
+  const visible = visibleFiles();
+  selectedPaths.clear();
+  for (const file of visible) selectedPaths.add(file.path);
+  selectionAnchor = visible[0]?.path || null;
+  selectionCursor = visible[visible.length - 1]?.path || null;
+  renderFiles();
+}
+
+function moveSelectionBy(delta, extend) {
+  const visible = visibleFiles().map((file) => file.path);
+  if (!visible.length) return;
+  const head =
+    extend && selectionCursor && visible.includes(selectionCursor)
+      ? selectionCursor
+      : selectionAnchor;
+  let index = head ? visible.indexOf(head) : -1;
+  if (index < 0) index = delta > 0 ? -1 : visible.length;
+  const next = Math.min(visible.length - 1, Math.max(0, index + delta));
+  const filePath = visible[next];
+  if (extend && selectionAnchor && visible.includes(selectionAnchor)) {
+    selectOnNameClick(filePath, { shiftKey: true, metaKey: false, ctrlKey: false });
+    selectionCursor = filePath;
+  } else {
+    selectedPaths.clear();
+    selectedPaths.add(filePath);
+    selectionAnchor = filePath;
+    selectionCursor = filePath;
+  }
+  renderFiles();
+  document.querySelector("#file-list .file-row.selected")?.scrollIntoView({ block: "nearest" });
+}
+
+function shortcutBlocked(event) {
+  if (event.target.closest("input, textarea, select")) return true;
+  if (!dialog.classList.contains("hidden")) return true;
+  if (libraryRootDialog && !libraryRootDialog.classList.contains("hidden")) return true;
+  if (library.classList.contains("hidden")) return true;
+  return false;
 }
 
 function clearFileSelection() {
   if (!selectedPaths.size && !selectionAnchor) return;
   selectedPaths.clear();
   selectionAnchor = null;
+  selectionCursor = null;
   renderFiles();
 }
 
@@ -985,7 +1658,13 @@ function isUnderLibraryRoot(filePath) {
 }
 
 function setFileFavorite(file, favorite) {
-  return mutateLibrary("set_favorite", { path: file.path, favorite });
+  return starFiles(actionTargets(file), favorite);
+}
+
+function starFiles(files, favorite) {
+  const paths = files.map((file) => file.path);
+  if (!paths.length) return;
+  return mutateLibrary("set_favorite", { paths, favorite });
 }
 
 async function renameLibraryFile(file) {
@@ -995,24 +1674,36 @@ async function renameLibraryFile(file) {
 }
 
 async function deleteLibraryFile(file) {
+  return deleteLibraryFiles(actionTargets(file));
+}
+
+async function deleteLibraryFiles(files) {
+  if (!files.length) return;
   const ok = await askConfirm({
-    title: "Delete file",
-    body: `Delete ${file.name}? This cannot be undone.`,
+    title: files.length === 1 ? "Delete file" : "Delete files",
+    body:
+      files.length === 1
+        ? `Delete ${files[0].name}? This cannot be undone.`
+        : `Delete ${files.length} files? This cannot be undone.`,
     okLabel: "Delete",
     tone: "danger",
   });
   if (!ok) return;
-  mutateLibrary("delete_file", { path: file.path });
+  mutateLibrary("delete_file", { paths: files.map((file) => file.path) });
 }
 
 async function reclassifyLibraryFile(file) {
+  const files = actionTargets(file);
   const ok = await askConfirm({
-    title: "Reclassify file",
-    body: `Re-run YAMNet on ${file.name}? It will be retagged and moved if the class changes.`,
+    title: files.length === 1 ? "Reclassify file" : "Reclassify files",
+    body:
+      files.length === 1
+        ? `Reclassify ${files[0].name}? It will be retagged and moved if the class changes. The original format is not changed.`
+        : `Reclassify ${files.length} files? They will be retagged and moved if the class changes. Original formats are not changed.`,
     okLabel: "Reclassify",
   });
   if (!ok) return;
-  classifyExisting([file.path]);
+  classifyExisting(files.map((item) => item.path));
 }
 
 function hideContextMenu() {
@@ -1071,6 +1762,14 @@ function addContextSubmenu(menu, label, entries) {
 function openContextMenu(event, file, otherFolders) {
   const menu = document.getElementById("context-menu");
   if (!menu) return;
+  if (!selectedPaths.has(file.path)) {
+    selectedPaths.clear();
+    selectedPaths.add(file.path);
+    selectionAnchor = file.path;
+  }
+  const targets = chosenFiles().length ? chosenFiles() : [file];
+  const n = targets.length;
+  const paths = targets.map((item) => item.path);
   hideContextMenu();
   menu.hidden = false;
   menu.classList.remove("hidden");
@@ -1079,38 +1778,52 @@ function openContextMenu(event, file, otherFolders) {
       showLibraryError(err.message || String(err));
     });
   });
-  addContextItem(menu, file.favorite ? "Remove star" : "Add to starred", () => {
-    setFileFavorite(file, !file.favorite);
-  });
-  addContextSeparator(menu);
-  addContextItem(menu, "Rename", () => renameLibraryFile(file));
-  addContextItem(menu, "Delete", () => deleteLibraryFile(file), { danger: true });
+  const allStarred = targets.every((item) => item.favorite);
   addContextItem(
     menu,
-    "Reclassify",
+    allStarred
+      ? n > 1
+        ? `Remove star from ${n} files`
+        : "Remove star"
+      : n > 1
+        ? `Add ${n} to starred`
+        : "Add to starred",
+    () => starFiles(targets, !allStarred)
+  );
+  addContextSeparator(menu);
+  addContextItem(menu, "Rename", () => renameLibraryFile(file), { disabled: n !== 1 });
+  addContextItem(
+    menu,
+    n > 1 ? `Delete ${n} files` : "Delete",
+    () => deleteLibraryFiles(targets),
+    { danger: true }
+  );
+  addContextItem(
+    menu,
+    n > 1 ? `Reclassify ${n} files` : "Reclassify",
     () => reclassifyLibraryFile(file),
     { disabled: ingesting || libraryBusy }
   );
   const collections = libraryTree?.collections || [];
   addContextSeparator(menu);
-  addContextSubmenu(menu, "Add to collection", [
+  addContextSubmenu(menu, n > 1 ? `Add ${n} to collection` : "Add to collection", [
     {
       label: "New collection…",
-      onClick: () => addFileToNewCollection(file),
+      onClick: () => addFilesToNewCollection(targets),
     },
     ...collections.map((collection) => ({
       label: collection.name,
-      onClick: () => addPathsToCollection(collection.id, [file.path]),
+      onClick: () => addPathsToCollection(collection.id, paths),
     })),
   ]);
   if (otherFolders.length) {
     addContextSeparator(menu);
     addContextSubmenu(
       menu,
-      "Move to",
+      n > 1 ? `Move ${n} to` : "Move to",
       otherFolders.map((dest) => ({
         label: dest,
-        onClick: () => mutateLibrary("move_file", { src: file.path, destFolder: dest }),
+        onClick: () => moveLibraryPaths(paths, dest),
       }))
     );
   }
@@ -1161,10 +1874,11 @@ function renderFiles() {
   }
   if (reclassifyFolder) {
     reclassifyFolder.disabled = ingesting || libraryBusy || !allFiles.length;
+    reclassifyFolder.hidden = !allFiles.length;
     reclassifyFolder.title = allFiles.length
-      ? `Run YAMNet again on ${allFiles.length} file(s) in ${collection ? collection.name : selectedFolder}`
+      ? `Reclassify ${allFiles.length} file(s) in ${collection ? collection.name : selectedFolder}`
       : isRecent
-        ? "Nothing ingested yet"
+        ? "Nothing added yet"
         : isStarred
           ? "No starred files yet"
           : collection
@@ -1173,16 +1887,40 @@ function renderFiles() {
   }
   list.replaceChildren();
   if (!allFiles.length) {
-    const empty = document.createElement("p");
-    empty.className = "empty";
-    empty.textContent = isRecent
-      ? "Nothing ingested yet. Drop WAV files to see them here."
-      : isStarred
-        ? "No starred files yet. Star a file to see it here."
-        : collection
-          ? "No files in this collection yet."
-          : "No WAV files in this folder.";
-    list.appendChild(empty);
+    const emptyLibrary = !libraryHasAudio();
+    if (isRecent && lastIngestFailed && emptyLibrary) {
+      appendEmptyState(list, {
+        title: "Nothing was added",
+        body: "The last drop did not land in the library. Check Last drop for the error, then try again.",
+        danger: true,
+      });
+    } else if (isRecent && emptyLibrary) {
+      appendEmptyState(list, {
+        title: "Your library is empty",
+        body: dropzoneHintForEmpty(),
+      });
+    } else if (isRecent) {
+      appendEmptyState(list, {
+        title: "No recent files",
+        body: "Newly added audio shows up here. Drop more files, or open a class folder in the sidebar.",
+      });
+    } else if (isStarred) {
+      appendEmptyState(list, {
+        title: "No starred files",
+        body: "Star a file to keep it in this list. Stars stay with the file if you move it.",
+      });
+    } else if (collection) {
+      appendEmptyState(list, {
+        title: "This collection is empty",
+        body: "Drag files onto the collection in the sidebar, or use Add to collection from a file.",
+      });
+    } else {
+      appendEmptyState(list, {
+        title: "This folder is empty",
+        body: "Files land here when they classify as this AudioSet class, or when you move them in.",
+      });
+    }
+    syncPlayerForSelection();
     return;
   }
   if (!files.length) {
@@ -1190,6 +1928,7 @@ function renderFiles() {
     empty.className = "empty";
     empty.textContent = "No files match.";
     list.appendChild(empty);
+    syncPlayerForSelection();
     return;
   }
 
@@ -1208,7 +1947,14 @@ function renderFiles() {
     playBtn.setAttribute("aria-label", `Play ${file.name}`);
     playBtn.textContent = file.path === playback.path && !playback.audio.paused ? "⏸" : "▶";
     playBtn.disabled = playback.loading;
-    playBtn.addEventListener("click", () => togglePlayback(file));
+    playBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectedPaths.clear();
+      selectedPaths.add(file.path);
+      selectionAnchor = file.path;
+      selectionCursor = file.path;
+      togglePlayback(file);
+    });
 
     const favBtn = document.createElement("button");
     favBtn.type = "button";
@@ -1219,11 +1965,10 @@ function renderFiles() {
     favBtn.disabled = ingesting || libraryBusy;
     favBtn.addEventListener("click", (event) => {
       event.stopPropagation();
-      setFileFavorite(file, !file.favorite);
+      const targets = actionTargets(file);
+      const next = targets.every((item) => item.favorite) ? false : true;
+      starFiles(targets, next);
     });
-
-    const nameCell = document.createElement("div");
-    nameCell.className = "file-name-cell";
 
     const handle = document.createElement("span");
     handle.className = "file-drag-handle";
@@ -1231,23 +1976,17 @@ function renderFiles() {
     handle.setAttribute("aria-label", `Drag ${file.name}`);
     for (let i = 0; i < 6; i += 1) handle.appendChild(document.createElement("i"));
 
+    const nameCell = document.createElement("div");
+    nameCell.className = "file-name-cell";
+
     const name = document.createElement("div");
     name.className = "file-name";
     name.textContent = file.name;
     name.title = file.path;
-    name.addEventListener("click", (event) => {
-      event.stopPropagation();
-      if (suppressFileClick) {
-        suppressFileClick = false;
-        return;
-      }
-      selectOnNameClick(file.path, event);
-      renderFiles();
-    });
 
     bindFileDrag(handle, file);
     bindFileDrag(name, file);
-    nameCell.append(handle, name);
+    nameCell.append(name);
 
     const duration = document.createElement("div");
     duration.className = "file-duration";
@@ -1255,7 +1994,10 @@ function renderFiles() {
 
     const tags = document.createElement("div");
     tags.className = "file-tags";
-    tags.textContent = (file.tags || []).join(" · ") || "No tags";
+    const tagNames = file.tags || [];
+    tags.textContent = tagNames.length
+      ? tagNames.join(" · ")
+      : "No tags (nothing reached the threshold)";
     tags.title = tags.textContent;
 
     const actions = document.createElement("div");
@@ -1275,10 +2017,15 @@ function renderFiles() {
         option.textContent = dest;
         moveSelect.appendChild(option);
       }
+      moveSelect.addEventListener("click", (event) => event.stopPropagation());
       moveSelect.addEventListener("change", () => {
         const destFolder = moveSelect.value;
         moveSelect.value = "";
-        if (destFolder) mutateLibrary("move_file", { src: file.path, destFolder });
+        if (!destFolder) return;
+        const paths = actionTargets(file)
+          .map((item) => item.path)
+          .filter((filePath) => currentFolderName({ path: filePath }) !== destFolder);
+        if (paths.length) moveLibraryPaths(paths, destFolder);
       });
       actions.appendChild(moveSelect);
     }
@@ -1287,7 +2034,10 @@ function renderFiles() {
       "M12 20h9",
       "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z",
     ]);
-    renameBtn.addEventListener("click", () => renameLibraryFile(file));
+    renameBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      renameLibraryFile(file);
+    });
 
     const deleteBtn = iconButton("Delete", [
       "M3 6h18",
@@ -1297,10 +2047,22 @@ function renderFiles() {
       "M14 11v6",
     ]);
     deleteBtn.classList.add("danger");
-    deleteBtn.addEventListener("click", () => deleteLibraryFile(file));
+    deleteBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteLibraryFile(file);
+    });
 
     actions.append(renameBtn, deleteBtn);
-    row.append(playBtn, favBtn, nameCell, duration, tags, actions);
+    row.append(handle, playBtn, favBtn, nameCell, duration, tags, actions);
+    row.addEventListener("click", (event) => {
+      if (suppressFileClick) {
+        suppressFileClick = false;
+        return;
+      }
+      if (event.target.closest("button, select")) return;
+      selectOnNameClick(file.path, event);
+      renderFiles();
+    });
     row.addEventListener("contextmenu", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -1308,6 +2070,7 @@ function renderFiles() {
     });
     list.appendChild(row);
   }
+  syncPlayerForSelection();
 }
 
 async function mutateLibrary(method, params) {
@@ -1390,34 +2153,71 @@ async function runClassifyAndIngest(paths, { busyTitle, doneLabel }) {
   if (ingesting || libraryBusy || !paths.length) return;
   ingesting = true;
   if (closeIngest) closeIngest.disabled = true;
+  setDropzoneOpen(true);
   dropzone.classList.add("busy");
   dropzoneTitle.textContent = busyTitle;
+  setDropzoneProgress({ stage: "inspect", fileIndex: 0, fileCount: paths.length, file: paths[0] });
   applyHistoryButtons();
   renderFiles();
   jobRows.clear();
   ingestJobs.replaceChildren();
+  setIngestSummary("");
   showIngestPanel();
   for (const filePath of paths) {
-    if (isWavPath(filePath)) setJobStatus(filePath, "queued", "stage");
+    if (isAudioPath(filePath)) setJobStatus(filePath, "Waiting", "stage");
   }
   try {
     const result = await window.fieldy.call("classify_and_ingest", { paths });
-    for (const job of result.jobs || []) {
+    const jobs = result.jobs || [];
+    for (const job of jobs) {
       if (job.ok) {
-        setJobStatus(job.path, `→ ${job.destination}`, "ok");
+        setJobStatus(job.path, jobWhyLine(job), "ok");
       } else {
         setJobStatus(job.path, job.error || "failed", "err");
       }
     }
-    const okCount = (result.jobs || []).filter((j) => j.ok).length;
-    dropzoneTitle.textContent = `Done: ${okCount} ${doneLabel}. Drop more WAV files when you want.`;
+    const okCount = jobs.filter((j) => j.ok).length;
+    const failCount = jobs.filter((j) => !j.ok).length;
+    lastIngestFailed = failCount > 0 && okCount === 0;
+    setDropzoneProgress({
+      stage: "done",
+      fileIndex: Math.max(0, jobs.length - 1),
+      fileCount: Math.max(1, jobs.length || paths.length),
+    });
+    if (doneLabel === "reclassified") {
+      dropzoneTitle.textContent =
+        okCount === 1 ? "Updated 1 file." : `Updated ${okCount} files.`;
+    } else if (okCount && failCount) {
+      dropzoneTitle.textContent = `Added ${okCount} file${okCount === 1 ? "" : "s"}. ${failCount} could not be added.`;
+    } else if (failCount) {
+      dropzoneTitle.textContent =
+        failCount === 1 ? "Couldn’t add that file." : `Couldn’t add ${failCount} files.`;
+    } else {
+      dropzoneTitle.textContent =
+        okCount === 1
+          ? "Added 1 file. Drop more whenever you like."
+          : `Added ${okCount} files. Drop more whenever you like.`;
+    }
+    if (failCount) {
+      setIngestSummary(
+        okCount
+          ? `${failCount} file${failCount === 1 ? "" : "s"} could not be added.`
+          : "Nothing landed in the library. See the errors below.",
+        { danger: true }
+      );
+    } else {
+      setIngestSummary("");
+    }
   } catch (err) {
+    lastIngestFailed = true;
     dropzoneTitle.textContent = err.message || String(err);
+    setIngestSummary("The drop did not finish. Nothing new was added.", { danger: true });
     showLibraryError(err.message || String(err));
   } finally {
     ingesting = false;
     if (closeIngest) closeIngest.disabled = false;
     dropzone.classList.remove("busy");
+    hideDropzoneProgressSoon();
     applyHistoryButtons();
   }
   try {
@@ -1430,7 +2230,7 @@ async function runClassifyAndIngest(paths, { busyTitle, doneLabel }) {
 
 function classifyExisting(paths) {
   return runClassifyAndIngest(paths, {
-    busyTitle: "Reclassifying… first file may load YAMNet",
+    busyTitle: "Updating files… the first one can take a minute",
     doneLabel: "reclassified",
   });
 }
@@ -1446,8 +2246,13 @@ openSettings.addEventListener("click", () => {
   openSettingsDialog();
 });
 settingsBrowse.addEventListener("click", async () => {
+  const current = settingsLibraryRoot.value.trim();
+  const choice = await openLibraryRootChoice();
+  if (!choice) return;
   const picked = await window.fieldy.chooseLibraryRoot();
-  if (picked) settingsLibraryRoot.value = picked;
+  if (!picked) return;
+  settingsLibraryRoot.value = picked;
+  pendingLibraryRootMode = sameLibraryPath(picked, current) ? null : choice;
 });
 undoBtn.addEventListener("click", () => runHistory("undo"));
 redoBtn.addEventListener("click", () => runHistory("redo"));
@@ -1470,8 +2275,8 @@ reclassifyFolder.addEventListener("click", async () => {
   const collection = selectedCollection();
   const label = collection ? collection.name : selectedFolder;
   const ok = await askConfirm({
-    title: "Re-run YAMNet",
-    body: `Re-run YAMNet on ${files.length} file(s) in ${label}? Files are retagged and moved if the class changes. Originals are not copied.`,
+    title: "Reclassify files",
+    body: `Reclassify ${files.length} file(s) in ${label}? Files are retagged and moved if the class changes. Original formats are not changed.`,
     okLabel: "Reclassify",
   });
   if (!ok) return;
@@ -1486,28 +2291,30 @@ dropzone.addEventListener("drop", async (e) => {
     (filePath) => !isUnderLibraryRoot(filePath)
   );
   if (!paths.length) {
-    dropzoneTitle.textContent = "Drop WAV files or folders (WAV only)";
+    dropzoneTitle.textContent = "Drop audio files or folders here";
     return;
   }
   await runClassifyAndIngest(paths, {
-    busyTitle: "Ingesting… first file may load YAMNet",
+    busyTitle: "Adding to your library… the first file can take a minute",
     doneLabel: "ingested",
   });
 });
 
 window.fieldy.onEvent((msg) => {
   if (msg.name !== "progress") return;
-  const { file, stage, destination, error } = msg.payload || {};
+  const payload = msg.payload || {};
+  const { file, stage, destination, error, why } = payload;
+  if (file) setDropzoneProgress(payload);
   if (!file) return;
   if (stage === "done") {
-    setJobStatus(file, `→ ${destination || "done"}`, "ok");
+    setJobStatus(file, jobWhyLine({ why, destination }), "ok");
     return;
   }
   if (stage === "error") {
     setJobStatus(file, error || "error", "err");
     return;
   }
-  setJobStatus(file, stage, "stage");
+  setJobStatus(file, STAGE_LABELS[stage] || stage, "stage");
 });
 
 window.addEventListener("keydown", (event) => {
@@ -1528,21 +2335,62 @@ window.addEventListener("keydown", (event) => {
     runHistory("redo");
     return;
   }
-  if (event.key !== "Escape") return;
-  hideContextMenu();
-  if (!dialog.classList.contains("hidden")) return;
-  clearFileSelection();
+  if (shortcutBlocked(event)) {
+    if (event.key === "Escape") hideContextMenu();
+    return;
+  }
+  if (event.key === "Escape") {
+    hideContextMenu();
+    clearFileSelection();
+    return;
+  }
+  if (combo && key === "a") {
+    event.preventDefault();
+    selectAllVisible();
+    return;
+  }
+  if (event.key === " " || event.code === "Space") {
+    if (event.target.closest("button")) return;
+    event.preventDefault();
+    const file = primarySelectedFile();
+    if (file) togglePlayback(file);
+    return;
+  }
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    moveSelectionBy(event.key === "ArrowDown" ? 1 : -1, event.shiftKey);
+    return;
+  }
+  if (event.key === "F2" || (event.key === "Enter" && !event.target.closest("button"))) {
+    event.preventDefault();
+    const file = chosenFiles().length === 1 ? chosenFiles()[0] : null;
+    if (file) renameLibraryFile(file);
+    return;
+  }
+  if (event.key === "Delete" || event.key === "Backspace") {
+    event.preventDefault();
+    const files = chosenFiles();
+    if (files.length) deleteLibraryFiles(files);
+    return;
+  }
+  if (!combo && key === "s") {
+    event.preventDefault();
+    const files = chosenFiles();
+    if (!files.length) return;
+    const next = files.every((file) => file.favorite) ? false : true;
+    starFiles(files, next);
+  }
 });
 
 document.getElementById("file-list").addEventListener("click", (event) => {
   const list = event.currentTarget;
-  if (event.target === list || event.target.classList.contains("empty")) {
+  if (event.target === list || event.target.closest(".empty, .empty-state")) {
     clearFileSelection();
   }
 });
 
 document.getElementById("file-list").addEventListener("contextmenu", (event) => {
-  if (event.target === event.currentTarget || event.target.classList.contains("empty")) {
+  if (event.target === event.currentTarget || event.target.closest(".empty, .empty-state")) {
     event.preventDefault();
     hideContextMenu();
   }
@@ -1550,9 +2398,15 @@ document.getElementById("file-list").addEventListener("contextmenu", (event) => 
 
 window.addEventListener("pointerdown", (event) => {
   const menu = document.getElementById("context-menu");
-  if (!menu || menu.hidden) return;
-  if (menu.contains(event.target)) return;
-  hideContextMenu();
+  if (menu && !menu.hidden && !menu.contains(event.target)) hideContextMenu();
+  if (
+    pitchMenu &&
+    !pitchMenu.hidden &&
+    !pitchMenu.contains(event.target) &&
+    event.target !== playerPitchRangeBtn
+  ) {
+    hidePitchMenu();
+  }
 });
 
 window.addEventListener("dragend", () => {
@@ -1563,5 +2417,6 @@ refresh().catch((err) => {
   console.error(err);
   onboarding.classList.remove("hidden");
   library.classList.add("hidden");
+  libraryChrome?.classList.add("hidden");
   showOnboardingError(err.message || String(err));
 });

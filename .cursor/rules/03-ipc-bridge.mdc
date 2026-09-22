@@ -19,7 +19,7 @@ alwaysApply: false
 {"id": "1", "method": "classify_and_ingest", "params": {"paths": ["/abs/a.wav"]}}
 {"id": "1", "ok": true, "result": {"jobs": []}}
 {"id": "1", "ok": false, "error": "message"}
-{"type": "event", "name": "progress", "payload": {"file": "a.wav", "stage": "yamnet", "pct": 40}}
+{"type": "event", "name": "progress", "payload": {"file": "a.wav", "stage": "analyze", "pct": 40, "fileIndex": 0, "fileCount": 1}}
 ```
 
 ## Methods
@@ -28,21 +28,21 @@ alwaysApply: false
 | --- | --- | --- |
 | ping | {} | {pong:true} |
 | get_config | {} | config or {needsOnboarding:true} |
-| save_config | {libraryRoot, thresholds…} | {ok:true} |
+| save_config | {libraryRoot, thresholds…, playback prefs?, libraryRootMode?} | {ok:true} — merges with previous saved config. `libraryRootMode` is `relocate` or `fresh`. Playback keys: `playbackVolume` 0–1, `playbackLoop`, `autoPlayOnSelect`, `playbackMuted`, `playbackPitch`, `playbackPitchEnabled`, `playbackPitchRange` 2\|4\|8, `playbackPitchResetOnNew`, `playbackPreservePitch` |
 | classify_and_ingest | {paths: string[]} | {jobs: JobResult[]} |
 | list_library | {} | {libraryRoot, folders, recentlyAdded, favorites, collections} |
-| move_file | {src, destFolder} | {path} — src must be inside libraryRoot; destFolder is Mixed or an AudioSet class |
+| move_file | {src or paths, destFolder} | {path, paths} — inside libraryRoot; destFolder is Mixed or an AudioSet class |
 | rename_file | {path, newName} | {path} — basename only; extension kept if omitted |
-| delete_file | {path} | {ok:true} — file only, must be inside libraryRoot |
-| set_favorite | {path, favorite} | {path, favorite} — persist per libraryRoot; not a disk folder |
+| delete_file | {path or paths} | {ok:true} — file only, must be inside libraryRoot |
+| set_favorite | {path or paths, favorite} | {path, paths, favorite} — persist per libraryRoot; not a disk folder |
 | create_collection | {name} | {id, name} — virtual list, no mkdir |
-| add_to_collection | {id, path} | {id, path} — path must be a library file |
+| add_to_collection | {id, path or paths} | {id, path, paths} — library files |
 | prepare_playback | {path} | {previewPath, duration, peaksMin, peaksMax, …} — 16-bit temp WAV + waveform peaks; original unchanged |
 | history_state | {} | {canUndo, canRedo} — session stack in the Python process |
 | undo | {} | {canUndo, canRedo} |
 | redo | {} | {canUndo, canRedo} |
 
-`destFolder` must be `Mixed` or a sanitized AudioSet class name.
+`destFolder` must be `Mixed` or a sanitized AudioSet class name. `resolve_library_file` requires a file under `libraryRoot`, but after a library-folder change it may re-home `ClassFolder/filename` onto the new root if that file exists.
 
 ## Electron
 
@@ -56,6 +56,6 @@ alwaysApply: false
 
 ## Security
 
-Do not enable `nodeIntegration`. Validate paths in Python. Ingest moves into `libraryRoot` only. `read-playback-file` is restricted to `fieldy-play-*.wav` under the OS temp directory. `start-library-drag` and `show-in-finder` only accept existing `.wav`/`.wave` files inside the pointer `libraryRoot` (originals, not playback temps). `open-external` only accepts `https://` URLs.
+Do not enable `nodeIntegration`. Validate paths in Python. Ingest moves into `libraryRoot` only. `read-playback-file` is restricted to `fieldy-play-*.wav` under the OS temp directory. `start-library-drag` and `show-in-finder` only accept existing WAV/AIFF/FLAC/MP3 files inside the pointer `libraryRoot` (originals, not playback temps). `open-external` only accepts `https://` URLs.
 
 Root `package.json` `npm start` → `electron/`. Move-to `<select>` must set `color` (native select defaults to black on the dark UI).

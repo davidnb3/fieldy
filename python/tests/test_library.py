@@ -8,6 +8,7 @@ import soundfile as sf
 
 from core.config import ConfigStore
 from core.library import list_library, normalize_new_name
+from core.metadata import write_tags
 from ipc.handlers import build_handlers
 
 
@@ -32,6 +33,7 @@ def test_list_library_always_has_mixed_and_existing_class_folders(tmp_path: Path
     store, library = _ready_store(tmp_path)
     wav = library / "Speech" / "a.wav"
     _write_wav(wav)
+    write_tags(str(wav), ["Speech"], score=0.82)
     (library / "not-a-class").mkdir()
     tree = list_library(store.get())
     names = [folder["name"] for folder in tree["folders"]]
@@ -41,7 +43,7 @@ def test_list_library_always_has_mixed_and_existing_class_folders(tmp_path: Path
     speech_files = next(f["files"] for f in tree["folders"] if f["name"] == "Speech")
     assert speech_files[0]["name"] == "a.wav"
     assert speech_files[0]["path"].endswith("a.wav")
-    assert speech_files[0]["duration"] > 0
+    assert speech_files[0]["why"] == "Speech · 0.82"
     assert tree["recentlyAdded"] == []
     assert tree["favorites"] == []
     assert tree["collections"] == []
@@ -84,6 +86,25 @@ def test_refuse_illegal_move_folder(tmp_path: Path):
         handlers["move_file"]({"src": str(src), "destFolder": "My Podcasts"})
     assert not (library / "My Podcasts").exists()
     assert src.is_file()
+
+
+def test_batch_move_and_star_undo_together(tmp_path: Path):
+    store, library = _ready_store(tmp_path)
+    a = library / "Speech" / "a.wav"
+    b = library / "Speech" / "b.wav"
+    _write_wav(a)
+    _write_wav(b)
+    handlers = build_handlers(store=store)
+    handlers["set_favorite"]({"paths": [str(a), str(b)], "favorite": True})
+    assert len(list_library(store.get())["favorites"]) == 2
+    handlers["move_file"]({"paths": [str(a), str(b)], "destFolder": "Mixed"})
+    mixed = next(f["files"] for f in list_library(store.get())["folders"] if f["name"] == "Mixed")
+    assert {f["name"] for f in mixed} >= {"a.wav", "b.wav"}
+    handlers["undo"]({})
+    speech = next(f["files"] for f in list_library(store.get())["folders"] if f["name"] == "Speech")
+    assert {f["name"] for f in speech} >= {"a.wav", "b.wav"}
+    handlers["undo"]({})
+    assert list_library(store.get())["favorites"] == []
 
 
 def test_normalize_new_name_rejects_paths():

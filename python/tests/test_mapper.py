@@ -77,4 +77,17 @@ def test_water_family_is_related():
     assert classes_related("Water", "Pour")
     assert classes_related("Liquid", "Trickle, dribble")
     assert not classes_related("Water", "Speech")
+
+
+def test_placement_why_class_score_and_mixed():
+    from core.mapper import placement_why
+
+    assert placement_why("Speech", ["Speech"], 0.82, 0.3) == "Speech · 0.82"
+    assert placement_why("Speech", ["Speech"], None, 0.3) == "Speech"
+    assert placement_why("Mixed", [], None, 0.3) == "Mixed · nothing reached 0.3"
+    assert placement_why("Mixed", ["Water", "Speech"], None, 0.3) == "Mixed · Water and Speech"
+    assert (
+        placement_why("Mixed", ["Water", "Speech", "Wind"], None, 0.3)
+        == "Mixed · Water, Speech, and Wind"
+    )
     assert not classes_related("Wind", "Speech")

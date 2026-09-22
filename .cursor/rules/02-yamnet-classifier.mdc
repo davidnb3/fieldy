@@ -61,3 +61,5 @@ No `yamnetToFolderMap`. No custom Wind/Noise/Voices buckets.
 ## Tags vs folder
 
 One destination folder. Tags = **all** matching AudioSet class names. Write them even when dest is `Mixed`.
+
+`placement_why(destination, tags, score, threshold)` is the last-drop one-liner (`Speech · 0.82`, `Mixed · nothing reached 0.3`, `Mixed · Water and Speech`). Do not put that line under filenames.

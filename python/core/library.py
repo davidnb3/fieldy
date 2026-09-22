@@ -5,14 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from core.config import assert_legal_destination, is_legal_destination
+from core.audio_formats import AUDIO_SUFFIXES
+from core.config import DEFAULTS, assert_legal_destination, is_legal_destination
 from core.favorites import prune_favorite_paths
-from core.metadata import read_tags
+from core.mapper import placement_why
+from core.metadata import read_score, read_tags
 from core.preprocess import audio_info
 from core.recent import prune_recent_paths
 from core.user_collections import prune_collections
-
-AUDIO_SUFFIXES = {".wav", ".wave"}
 
 
 def require_ready_config(config: dict[str, Any]) -> Path:
@@ -26,14 +26,36 @@ def require_ready_config(config: dict[str, Any]) -> Path:
 
 def resolve_library_file(config: dict[str, Any], path: str) -> Path:
     root = require_ready_config(config)
-    resolved = Path(path).expanduser().resolve()
-    try:
-        resolved.relative_to(root)
-    except ValueError as exc:
-        raise ValueError("path is outside libraryRoot") from exc
+    resolved = _library_file_under_root(root, path)
+    if resolved is None:
+        raise ValueError("path is outside libraryRoot")
     if not resolved.is_file():
         raise FileNotFoundError(f"not a file: {path}")
     return resolved
+
+
+def _library_file_under_root(root: Path, path: str) -> Path | None:
+    """Accept a path already in the library, or the same class-folder/name after a root change."""
+    given = Path(path).expanduser()
+    candidates = [given]
+    if len(given.parts) >= 2:
+        candidates.append(root / given.parts[-2] / given.name)
+    seen: set[Path] = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        try:
+            resolved.relative_to(root)
+        except ValueError:
+            continue
+        if resolved.is_file():
+            return resolved
+    return None
 
 
 def list_library(config: dict[str, Any]) -> dict[str, Any]:
@@ -49,6 +71,7 @@ def list_library(config: dict[str, Any]) -> dict[str, Any]:
     )
     names.extend(extra)
 
+    threshold = float(config.get("confidenceThreshold", DEFAULTS["confidenceThreshold"]))
     folders = []
     files_by_path: dict[str, dict[str, Any]] = {}
     for name in names:
@@ -58,7 +81,7 @@ def list_library(config: dict[str, Any]) -> dict[str, Any]:
             for child in sorted(folder.iterdir()):
                 if not child.is_file() or child.suffix.lower() not in AUDIO_SUFFIXES:
                     continue
-                entry = _file_entry(child)
+                entry = _file_entry(child, threshold=threshold)
                 files.append(entry)
                 files_by_path[str(child.resolve())] = entry
         folders.append({"name": name, "files": files})
@@ -83,14 +106,23 @@ def list_library(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _file_entry(path: Path) -> dict[str, Any]:
-    entry: dict[str, Any] = {"name": path.name, "path": str(path), "tags": []}
+def _file_entry(path: Path, *, threshold: float) -> dict[str, Any]:
     try:
-        entry["tags"] = read_tags(str(path))
+        resolved = path.resolve()
+    except OSError:
+        resolved = path
+    entry: dict[str, Any] = {"name": path.name, "path": str(resolved), "tags": []}
+    try:
+        entry["tags"] = read_tags(str(resolved))
     except Exception:
         entry["tags"] = []
     try:
-        info = audio_info(str(path))
+        entry["score"] = read_score(str(resolved))
+    except Exception:
+        entry["score"] = None
+    entry["why"] = placement_why(resolved.parent.name, entry["tags"], entry["score"], threshold)
+    try:
+        info = audio_info(str(resolved))
         entry["duration"] = info["duration"]
     except Exception:
         entry["duration"] = None

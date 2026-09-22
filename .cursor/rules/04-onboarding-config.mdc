@@ -12,7 +12,7 @@ Do **not** ask for allowed folder names or a custom tag vocabulary. Folders and 
 
 ## Persistence
 
-Save merged config (defaults + `libraryRoot`) to `{libraryRoot}/.Fieldy.json`. Validate against `config/config.schema.json`. `ConfigStore` still **loads** a leftover `{libraryRoot}/.soundly-lite.json` and `~/.soundly-lite/pointer.json` if the Fieldy files are missing. New saves always write Fieldy paths.
+Save merged config (defaults + `libraryRoot`) to `{libraryRoot}/.Fieldy.json`. `ConfigStore.save` **resolves** `libraryRoot` after mkdir. Validate against `config/config.schema.json`. `ConfigStore` still **loads** a leftover `{libraryRoot}/.soundly-lite.json` and `~/.soundly-lite/pointer.json` if the Fieldy files are missing. New saves always write Fieldy paths.
 
 On `save_config`, create:
 
@@ -25,12 +25,12 @@ Do not pre-create 521 class folders. Class folders appear when the first file is
 ## Config fields
 
 - Required: `libraryRoot`
-- Optional defaults: `confidenceThreshold` 0.3, `analyzeChunkSeconds` 60 (16 kHz chunk size for RAM stitching, **not** a skip-YAMNet gate), `ingestMode` `move` (`copy` leaves the dropped file in place and tags only the library copy), `dropzoneOnLaunch` true. `conflictDelta` may still appear in saved JSON but is unused.
+- Optional defaults: `confidenceThreshold` 0.3, `analyzeChunkSeconds` 60 (16 kHz chunk size for RAM stitching, **not** a skip-YAMNet gate), `ingestMode` `move` (`copy` leaves the dropped file in place and tags only the library copy), `dropzoneOnLaunch` true, `playbackVolume` 1, `playbackLoop` false, `autoPlayOnSelect` false, `playbackMuted` false, `playbackPitch` 100, `playbackPitchEnabled` false, `playbackPitchRange` 2, `playbackPitchResetOnNew` true, `playbackPreservePitch` true. `conflictDelta` may still appear in saved JSON but is unused.
 
 No `folders[]`, no `allowedTags[]`, no `yamnetToFolderMap`, no `longFileSeconds` bypass.
 
 ## UI
 
-`#onboarding` visible when `get_config.needsOnboarding`. Copy links **AudioSet class** to `https://research.google.com/audioset/dataset/index.html` (system browser). Examples: Siren, Animal, Speech. Do not mention Mixed on this screen. “The app never creates all AudioSet folders up front.” Native **Browse…** plus **When dropping files** (`ingestMode` move/copy) plus Save. `#library` hidden until save succeeds. After onboarding, **Settings** (`#dialog-settings`) can change library root, threshold, ingestMode, and dropzoneOnLaunch.
+`#onboarding` visible when `get_config.needsOnboarding`. Copy links **AudioSet class** to `https://research.google.com/audioset/dataset/index.html` (system browser). Examples: Siren, Animal, Speech. Do not mention Mixed on this screen. “The app never creates all AudioSet folders up front.” Native **Browse…** plus **When dropping files** (`ingestMode` move/copy) plus Save. `#library` hidden until save succeeds. After onboarding, **Settings** (`#dialog-settings`) can change library root, threshold, ingestMode, dropzoneOnLaunch, and auto-play on select. **Browse…** opens a second dialog (`#library-root-dialog`, title **Change library folder?**) first: Fieldy will watch a different folder and the current library will disappear from the UI. The user can **move files to the new folder** (class folders + Mixed; stars, collections, recently added remapped) or **leave files here and start fresh**. The native folder picker runs after that choice. Nothing moves until Settings **Save**. `save_config` receives `libraryRootMode` `relocate` or `fresh` when the root changed (`python/core/library_root.py`). Do not nest the new folder inside the old one. After a root change, clear the file selection.
 
 To force onboarding again: quit the app, delete `~/.Fieldy/pointer.json`. The old library folder can stay; delete it only if you want a clean disk. Restart Electron so Python reloads config from disk.

@@ -2,9 +2,9 @@
 
 ## Goals
 
-1. On first launch the user only chooses a **library root**. Folders are **YAMNet / AudioSet class names**, created when the first file lands in that class. `Mixed` is the only extra bucket.
-2. Drop Zoom H6 (and other) audio → Python classifies with YAMNet on a **temporary in-memory 16 kHz mono** view (full duration, native patch framing) → tags the **original** with matching class names → moves the original into `{class}` or `Mixed`.
-3. Electron shows that library; move/rename/delete/reclassify go through Python; ▶ plays a temp 16-bit preview with a peak waveform (original 32-bit float stays on disk).
+1. On first launch the user chooses a **library root** and **move vs copy**. Folders are **YAMNet / AudioSet class names**, created when the first file lands in that class. `Mixed` is the only extra bucket.
+2. Drop audio → Python classifies with YAMNet on a **temporary in-memory 16 kHz mono** view (full duration, native patch framing) → tags the **original** with matching class names → moves or copies into `{class}` or `Mixed`. Supported library files: WAV, AIFF, FLAC, MP3 (never transcoded).
+3. Electron shows that library; move/rename/delete/reclassify go through Python; ▶ plays a temp 16-bit preview with a peak waveform, level, loop, and pitch/tempo (original 32-bit float stays on disk).
 
 ## Process topology
 
@@ -92,7 +92,12 @@ Tags are written even when destination is `Mixed`.
 {
   "libraryRoot": "/absolute/path",
   "confidenceThreshold": 0.3,
-  "analyzeChunkSeconds": 60
+  "analyzeChunkSeconds": 60,
+  "ingestMode": "move",
+  "dropzoneOnLaunch": true,
+  "playbackVolume": 1,
+  "playbackLoop": false,
+  "autoPlayOnSelect": false
 }
 ```
 

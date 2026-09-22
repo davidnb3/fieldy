@@ -6,31 +6,30 @@ alwaysApply: false
 
 # Feature: interactive audio library UI
 
-Basic library explorer:
+Renderer detail: `.cursor/rules/10-library-explorer.mdc`. This file is the Python/IPC contract.
 
-- Left: `Mixed` (always) plus every class folder that already exists on disk (created by ingest). Do not list all 521 empty AudioSet classes.
-- Main: files in the selected folder (play, name, tags, duration).
-- Bottom: `#player` waveform when a file is playing.
+## List
 
-## Mutations (all via Python IPC — implemented)
+`list_library` → `Mixed` first, then existing legal class folders only (never all 521 empty names). File entries: `path` (resolved), `tags`, `score`, `why`, `duration`, `favorite`. Also `recentlyAdded`, `favorites`, `collections`. Paths must stay under `libraryRoot`; `resolve_library_file` may re-home `ClassFolder/filename` after a library-root change.
 
-- **List:** `list_library` → `Mixed` first, then existing legal class folders only (never all 521 empty names).
-- **Move:** `move_file {src, destFolder}`. Path must be under `libraryRoot`. `destFolder` must be `Mixed` or an AudioSet class. Does not re-run YAMNet.
-- **Rename:** `rename_file {path, newName}` basename only; if there is no extension, the original suffix is kept. UI: shared `#dialog` (`openDialog` / `askText`), not `window.prompt`.
-- **Delete:** `delete_file {path}` unlinks a file inside the library only. UI: `#dialog` confirm with danger (red) OK button, not `window.confirm`.
-- **Reclassify:** `classify_and_ingest` with library file paths. UI: folder **Re-run YAMNet** or context-menu **Reclassify** via `#dialog` confirm, not `window.confirm`. No per-row Reclassify button.
+## Mutations (Python IPC)
+
+- **Move:** `move_file {src or paths, destFolder}`. `destFolder` is `Mixed` or an AudioSet class. Batch is one history group. Does not re-run YAMNet.
+- **Rename:** `rename_file {path, newName}` basename only; if there is no extension, the original suffix is kept.
+- **Delete:** `delete_file {path or paths}` unlinks inside the library only (undo stash `.Fieldy-undo`).
+- **Star:** `set_favorite {path or paths, favorite}`.
+- **Collections:** `create_collection` / `add_to_collection {id, path or paths}` — virtual lists, no mkdir.
+- **Reclassify:** `classify_and_ingest` with library file paths.
 - **Play:** `prepare_playback` + `readPlaybackFile` — see `.cursor/rules/11-playback.mdc`.
 
-After each mutation, the UI should `list_library` again. Disk is source of truth.
-
-Renderer: `.cursor/rules/10-library-explorer.mdc`. Move destinations are existing folders only.
+UI uses the shared `#dialog`, not `window.prompt` / `window.confirm`. After each mutation, `list_library` again. Disk is source of truth. Move destinations in the UI are **existing** folders only.
 
 ## Constraints
 
 - Do not provide a UI to invent non-AudioSet folder names.
 - Manual move does not re-run YAMNet.
-- Playback uses a temp 16-bit WAV for Chromium; 32-bit float originals stay pristine. Waveform is our peak envelope, not YAMNet’s matplotlib score-o-gram.
+- Playback uses a temp 16-bit WAV for Chromium; originals stay pristine. Waveform is our peak envelope, not YAMNet’s matplotlib score-o-gram.
 
 ## Look
 
-Dark panel UI: background `#1a1b1e`, accent `#ff8a3d`, danger `#e5534b` for delete. `#app-bar` + shared `#dialog` for every modal. Dashed drop zone (closable). No extra frameworks in MVP.
+Dark panel UI: background `#1a1b1e`, accent `#ff8a3d`, danger `#e5534b` for delete. Persistent `#app-bar` + shared `#dialog` for every modal. Dashed drop zone (closable **X**, two stacked audio-file icons: orange in front, green behind). Section titles (`Libraries`, `Folders`, open folder heading) use the accent. Icon buttons show a low-opacity accent border on hover. Empty states are `.empty-state` cards. No extra frameworks. User-facing copy does not say Zoom or YAMNet.

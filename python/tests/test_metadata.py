@@ -83,3 +83,29 @@ def test_read_tags_empty_when_untagged(tmp_path: Path):
     wav = tmp_path / "h6.wav"
     _write_float32_stereo_48k(wav)
     assert read_tags(str(wav)) == []
+
+
+def _write_tone(path: Path, fmt: str, subtype: str | None = None) -> None:
+    sr = 16000
+    t = np.linspace(0, 0.2, int(sr * 0.2), endpoint=False)
+    tone = (0.15 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    kwargs = {"format": fmt}
+    if subtype:
+        kwargs["subtype"] = subtype
+    sf.write(path, tone, sr, **kwargs)
+
+
+def test_tags_round_trip_flac_aiff_mp3(tmp_path: Path):
+    cases = [
+        (tmp_path / "a.flac", "FLAC", "PCM_16"),
+        (tmp_path / "a.aiff", "AIFF", "FLOAT"),
+        (tmp_path / "a.mp3", "MP3", None),
+    ]
+    for path, fmt, subtype in cases:
+        _write_tone(path, fmt, subtype)
+        before, _sr = sf.read(str(path), dtype="float32")
+        write_tags(str(path), ["Speech"], score=0.9)
+        after, _sr2 = sf.read(str(path), dtype="float32")
+        assert read_tags(str(path)) == ["Speech"]
+        assert read_score(str(path)) == pytest.approx(0.9, abs=0.0001)
+        np.testing.assert_allclose(before, after, atol=1e-3 if fmt == "MP3" else 1e-6)

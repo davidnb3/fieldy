@@ -153,6 +153,8 @@ def test_ingest_unrelated_time_split_goes_to_mixed_with_tags(tmp_path: Path):
     assert job["ok"] is True
     assert job["destination"] == "Mixed"
     assert set(job["tags"]) == {"Water", "Speech"}
+    assert job["why"].startswith("Mixed · ")
+    assert "Water" in job["why"] and "Speech" in job["why"]
     assert Path(job["movedTo"]).parent.name == "Mixed"
     assert set(read_tags(job["movedTo"])) == {"Water", "Speech"}
 

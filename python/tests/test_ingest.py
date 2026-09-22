@@ -60,6 +60,7 @@ def test_ingest_tags_and_moves_wav(tmp_path: Path):
     assert not src.exists()
     assert read_tags(str(moved)) == ["Speech"]
     assert job["score"] == pytest.approx(0.9)
+    assert job["why"] == "Speech · 0.90"
     assert (library / "Mixed").is_dir()
     assert "analyze" in stages and "tag" in stages and "done" in stages
 
@@ -137,5 +138,32 @@ def test_expand_audio_paths_walks_directory(tmp_path: Path):
     nested.mkdir(parents=True)
     _write_wav(nested / "a.wav")
     (nested / "notes.txt").write_text("nope")
+    _write_wav(nested / "a.wav")
+    sf.write(nested / "b.flac", np.zeros(1600, dtype=np.float32), 16000, format="FLAC")
+    (nested / "notes.txt").write_text("nope")
     found = expand_audio_paths([str(tmp_path / "card")])
-    assert [p.name for p in found] == ["a.wav"]
+    assert [p.name for p in found] == ["a.wav", "b.flac"]
+
+
+def test_ingest_flac_aiff_mp3(tmp_path: Path):
+    library = tmp_path / "library"
+    store = ConfigStore(pointer_path=tmp_path / "pointer.json")
+    store.save({"libraryRoot": str(library)})
+    sr = 16000
+    t = np.linspace(0, 0.2, int(sr * 0.2), endpoint=False)
+    tone = (0.12 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    flac = tmp_path / "a.flac"
+    aiff = tmp_path / "a.aiff"
+    mp3 = tmp_path / "a.mp3"
+    sf.write(flac, tone, sr, format="FLAC")
+    sf.write(aiff, tone, sr, format="AIFF", subtype="FLOAT")
+    sf.write(mp3, tone, sr, format="MP3")
+    jobs = ingest_paths(
+        [str(flac), str(aiff), str(mp3)],
+        store.get(),
+        classifier=FakeSpeechClassifier(),
+    )
+    assert all(job["ok"] for job in jobs)
+    assert {Path(job["movedTo"]).suffix.lower() for job in jobs} == {".flac", ".aiff", ".mp3"}
+    for job in jobs:
+        assert read_tags(job["movedTo"]) == ["Speech"]
