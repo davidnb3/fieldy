@@ -1,19 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import Logo from "./Logo.jsx";
+import { jumpTo, usePath } from "./route.jsx";
+import { ContactPage, SiteFooter, SiteHeader, SupportPage } from "./support.jsx";
 import {
   DropFiledVisual,
   DragOutVisual,
   LocalFolderVisual,
   OfflineFreeVisual,
 } from "./visuals.jsx";
-
-function jumpTo(id) {
-  return (event) => {
-    event.preventDefault();
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-    window.history.replaceState(null, "", `#${id}`);
-  };
-}
 
 function detectOs() {
   if (typeof navigator === "undefined") return "mac";
@@ -129,6 +122,7 @@ const MORE = [
 ];
 
 export default function App() {
+  const { path, navigate } = usePath();
   const [navSolid, setNavSolid] = useState(false);
 
   useEffect(() => {
@@ -136,27 +130,37 @@ export default function App() {
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [path]);
 
   return (
     <>
-      <header className={`nav ${navSolid ? "nav-solid" : ""}`}>
-        <div className="nav-inner">
-          <a className="nav-logo" href="#top" aria-label="Fieldy home" onClick={jumpTo("top")}>
-            <Logo height={22} />
-          </a>
-          <nav className="nav-links">
-            <a href="#features" onClick={jumpTo("features")}>
-              Features
-            </a>
-            <a href="#download" onClick={jumpTo("download")}>
-              Download
-            </a>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader path={path} navigate={navigate} solid={navSolid} />
+      {path === "/support" ? (
+        <SupportPage navigate={navigate} />
+      ) : path === "/contact" ? (
+        <ContactPage />
+      ) : (
+        <Home />
+      )}
+      <SiteFooter path={path} navigate={navigate} />
+    </>
+  );
+}
 
-      <main id="top">
+function Home() {
+  useEffect(() => {
+    const id = window.location.hash.replace("#", "");
+    if (!id) return;
+    const target = document.getElementById(id);
+    if (!target) return;
+    const previous = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = "auto";
+    target.scrollIntoView();
+    document.documentElement.style.scrollBehavior = previous;
+  }, []);
+
+  return (
+    <main id="top">
         <section className="hero">
           <img
             className="hero-photo"
@@ -231,30 +235,6 @@ export default function App() {
             <DownloadButtons />
           </div>
         </section>
-      </main>
-
-      <footer className="footer">
-        <div className="shell">
-          <div className="footer-top">
-            <Logo height={20} />
-            <p className="tagline">free · offline · yours</p>
-          </div>
-          <div className="footer-links">
-            <a href="#download" onClick={jumpTo("download")}>
-              Download
-            </a>
-            <a href="#features" onClick={jumpTo("features")}>
-              Features
-            </a>
-            <a href="#legal">Privacy</a>
-            <a href="#legal">Terms</a>
-          </div>
-          <p className="legal" id="legal">
-            Fieldy is a desktop library for your own recordings. Not a cloud SFX platform, not a shop,
-            not a search of the internet.
-          </p>
-        </div>
-      </footer>
-    </>
+    </main>
   );
 }
