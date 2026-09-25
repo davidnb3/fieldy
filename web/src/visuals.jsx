@@ -21,22 +21,21 @@ const LIBRARY_FOLDERS = [
   "Train",
 ];
 
-const WIND_FILES = ["gust.wav", "howl.aiff", "breeze.wav", "gale.flac", "draft.mp3", "whistle.wav"];
+const WIND_ROWS = [
+  { name: "gust.wav", duration: "4.2s" },
+  { name: "howl.aiff", duration: "8.0s" },
+  { name: "breeze.wav", duration: "3.6s" },
+  { name: "gale.flac", duration: "12.4s" },
+  { name: "whistle.wav", duration: "2.1s" },
+];
 
-const PROGRAMS = [
+const DESTINATIONS = [
   { name: "Ableton Live", src: "/logos/abletonlive.svg" },
   { name: "Pro Tools", src: "/logos/protools.svg" },
   { name: "Bitwig", src: "/logos/bitwig.svg" },
-  { name: "Adobe Audition", src: "/logos/adobeaudition.svg" },
-  { name: "Premiere Pro", src: "/logos/adobepremierepro.svg" },
-  { name: "After Effects", src: "/logos/adobeaftereffects.svg" },
-  { name: "Photoshop", src: "/logos/adobephotoshop.svg" },
-  { name: "Reason", src: "/logos/reasonstudios.svg" },
+  { name: "Audition", src: "/logos/adobeaudition.svg" },
+  { name: "Premiere", src: "/logos/adobepremierepro.svg" },
   { name: "Audacity", src: "/logos/audacity.svg" },
-  { name: "Ardour", src: "/logos/ardour.svg" },
-  { name: "Steinberg", src: "/logos/steinberg.svg" },
-  { name: "VLC", src: "/logos/vlcmediaplayer.svg" },
-  { name: "OBS", src: "/logos/obsstudio.svg" },
 ];
 
 function MaterialIcon({ name }) {
@@ -45,6 +44,178 @@ function MaterialIcon({ name }) {
       {name}
     </span>
   );
+}
+
+function easeInOut(t) {
+  const x = Math.min(1, Math.max(0, t));
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
+function arc(a, b, t, lift) {
+  const p = easeInOut(t);
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2 + lift;
+  const u = 1 - p;
+  return {
+    x: u * u * a.x + 2 * u * p * mx + p * p * b.x,
+    y: u * u * a.y + 2 * u * p * my + p * p * b.y,
+  };
+}
+
+function useFileDrag(sceneRef) {
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const pointer = scene.querySelector(".drag-pointer");
+    const ghost = scene.querySelector(".drag-ghost");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const rows = () => [...scene.querySelectorAll(".mini-row")];
+    const tiles = () => [...scene.querySelectorAll(".dest-tile")];
+
+    const localPoint = (el, grip) => {
+      const origin = scene.getBoundingClientRect();
+      const rect = (grip ? el.querySelector(".mini-grip") : el)?.getBoundingClientRect();
+      if (!rect) return { x: 0, y: 0 };
+      return {
+        x: rect.left + rect.width / 2 - origin.left,
+        y: rect.top + rect.height / 2 - origin.top,
+      };
+    };
+
+    const place = (el, x, y) => {
+      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    };
+
+    let raf = 0;
+    let running = false;
+    let phaseStart = 0;
+    let mode = "to-row";
+    let index = 0;
+    let from = null;
+
+    const clear = () => {
+      scene.querySelectorAll(".is-hover, .is-selected, .is-drop").forEach((el) => {
+        el.classList.remove("is-hover", "is-selected", "is-drop");
+      });
+    };
+
+    const paintStill = () => {
+      const row = rows()[0];
+      if (!row) return;
+      clear();
+      row.classList.add("is-hover");
+      const at = localPoint(row, true);
+      place(pointer, at.x, at.y);
+      ghost.style.opacity = "0";
+      pointer.classList.remove("is-down");
+    };
+
+    const tick = (now) => {
+      const rowList = rows();
+      const tileList = tiles();
+      const row = rowList[index % rowList.length];
+      const tile = tileList[index % tileList.length];
+      if (!row || !tile) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+
+      const rowPt = localPoint(row, true);
+      const tilePt = localPoint(tile, false);
+      const elapsed = (now - phaseStart) / 1000;
+      clear();
+
+      let pos = rowPt;
+      let ghostOn = false;
+      let pressing = false;
+
+      if (mode === "to-row") {
+        const origin = from || { x: rowPt.x - 46, y: rowPt.y - 36 };
+        const p = Math.min(1, elapsed / 0.62);
+        pos = arc(origin, rowPt, p, -16);
+        if (p > 0.72) row.classList.add("is-hover");
+        if (p >= 1) {
+          mode = "hover";
+          phaseStart = now;
+        }
+      } else if (mode === "hover") {
+        pos = rowPt;
+        row.classList.add("is-hover");
+        if (elapsed > 0.34) {
+          mode = "drag";
+          phaseStart = now;
+        }
+      } else if (mode === "drag") {
+        const p = Math.min(1, elapsed / 0.78);
+        pos = arc(rowPt, tilePt, p, -32);
+        row.classList.add("is-selected");
+        pressing = true;
+        ghostOn = true;
+        if (p > 0.86) tile.classList.add("is-drop");
+        if (p >= 1) {
+          mode = "drop";
+          phaseStart = now;
+        }
+      } else {
+        pos = tilePt;
+        row.classList.add("is-selected");
+        tile.classList.add("is-drop");
+        pressing = elapsed < 0.2;
+        ghostOn = elapsed < 0.18;
+        if (elapsed > 0.42) {
+          from = { x: pos.x, y: pos.y };
+          index = (index + 1) % rowList.length;
+          mode = "to-row";
+          phaseStart = now;
+          ghostOn = false;
+          pressing = false;
+        }
+      }
+
+      place(pointer, pos.x, pos.y);
+      pointer.classList.toggle("is-down", pressing);
+      place(ghost, pos.x + 12, pos.y + 14);
+      ghost.style.opacity = ghostOn ? "1" : "0";
+
+      raf = requestAnimationFrame(tick);
+    };
+
+    const stop = () => {
+      running = false;
+      cancelAnimationFrame(raf);
+      raf = 0;
+    };
+
+    const start = () => {
+      if (running || reduce) return;
+      running = true;
+      phaseStart = performance.now();
+      raf = requestAnimationFrame(tick);
+    };
+
+    paintStill();
+
+    const visible = () => {
+      const rect = scene.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    };
+    const sync = () => {
+      if (!document.hidden && visible()) start();
+      else stop();
+    };
+
+    const io = new IntersectionObserver(sync, { threshold: 0.25 });
+    io.observe(scene);
+    document.addEventListener("visibilitychange", sync);
+
+    return () => {
+      stop();
+      io.disconnect();
+      document.removeEventListener("visibilitychange", sync);
+    };
+  }, [sceneRef]);
 }
 
 function useSpin(trackRef, count, wheel) {
@@ -185,36 +356,49 @@ export function DropFiledVisual() {
 
 
 export function DragOutVisual() {
-  const folderRef = useRef(null);
-  const reelRef = useRef(null);
-  const files = [...WIND_FILES, ...WIND_FILES];
-  const programs = [...PROGRAMS, ...PROGRAMS];
-  useSpin(folderRef, WIND_FILES.length, false);
-  useSpin(reelRef, PROGRAMS.length, true);
+  const sceneRef = useRef(null);
+  useFileDrag(sceneRef);
 
   return (
-    <div className="drag-scene" role="img" aria-label="Files in the Wind folder can be dragged into any other program">
-      <div className="library-card">
-        <p className="library-label">Wind</p>
-        <div className="library-mask">
-          <ul className="library-track" ref={folderRef}>
-            {files.map((name, i) => (
-              <li key={`${name}-${i}`}>{name}</li>
-            ))}
-          </ul>
+    <div className="drag-scene" ref={sceneRef} role="img" aria-label="A pointer drags a file from the Wind folder into another program">
+      <div className="mini-app">
+        <p className="mini-heading">Wind</p>
+        <div className="mini-list">
+          {WIND_ROWS.map((file) => (
+            <div className="mini-row" key={file.name}>
+              <span className="mini-grip" aria-hidden="true">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <i key={i} />
+                ))}
+              </span>
+              <span className="mini-play" aria-hidden="true">
+                ▶
+              </span>
+              <span className="mini-star" aria-hidden="true">
+                ☆
+              </span>
+              <span className="mini-name">{file.name}</span>
+              <span className="mini-dur">{file.duration}</span>
+            </div>
+          ))}
         </div>
       </div>
-      <div className="reel">
-        <div className="reel-window">
-          <ul className="reel-track" ref={reelRef}>
-            {programs.map((program, i) => (
-              <li key={`${program.name}-${i}`}>
-                <img src={program.src} alt={program.name} />
-              </li>
-            ))}
-          </ul>
+      <div className="dest-pane">
+        <div className="dest-grid">
+          {DESTINATIONS.map((program) => (
+            <div className="dest-tile" key={program.name}>
+              <img src={program.src} alt="" />
+              <span>{program.name}</span>
+            </div>
+          ))}
         </div>
       </div>
+      <span className="drag-pointer" aria-hidden="true">
+        <MaterialIcon name="arrow_selector_tool" />
+      </span>
+      <span className="drag-ghost" aria-hidden="true">
+        <MaterialIcon name="audio_file" />
+      </span>
     </div>
   );
 }
