@@ -1012,13 +1012,6 @@ p {
   line-height: 1.5;
 }
 
-.contact-note {
-  margin-top: 16px;
-  max-width: 38rem;
-  color: var(--muted);
-  line-height: 1.55;
-}
-
 .support-search {
   display: flex;
   align-items: center;
@@ -1173,12 +1166,25 @@ p {
   gap: 16px;
 }
 
-.form-sent {
+.form-sent,
+.form-error {
   margin-right: auto;
-  color: var(--muted);
   font-size: 14px;
   font-weight: 400;
   line-height: 1.4;
+}
+
+.form-sent {
+  color: var(--muted);
+}
+
+.form-error {
+  color: var(--danger);
+}
+
+.form-actions .btn-primary:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .form-actions .btn-primary {

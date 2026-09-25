@@ -86,7 +86,7 @@ const TOPICS = [
   "Something else",
 ];
 
-const CONTACT_EMAIL = "support@fieldy.app";
+const WEB3FORMS_ACCESS_KEY = "4ddba739-cd7e-45fd-9a72-ea719df3700b";
 
 export function SiteHeader({ path, navigate, solid }) {
   const home = path === "/";
@@ -259,16 +259,37 @@ export function SupportPage({ navigate }) {
 }
 
 export function ContactPage() {
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState("idle");
+  const [error, setError] = useState("");
 
-  function onSubmit(event) {
+  async function onSubmit(event) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const subject = `Fieldy — ${data.get("topic")}`;
-    const body = `${data.get("message")}\n\n${data.get("name")}\n${data.get("email")}`;
-    const href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = href;
-    setSent(true);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    formData.append("access_key", WEB3FORMS_ACCESS_KEY);
+    formData.append("subject", `Fieldy — ${formData.get("topic")}`);
+
+    setStatus("sending");
+    setError("");
+
+    try {
+      const response = await fetch("https://api.web3forms.com/submit", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        form.reset();
+        setStatus("sent");
+      } else {
+        setStatus("error");
+        setError(data.message || "Something went wrong. Please try again.");
+      }
+    } catch {
+      setStatus("error");
+      setError("Something went wrong. Please try again.");
+    }
   }
 
   return (
@@ -277,12 +298,8 @@ export function ContactPage() {
         <div className="page-intro">
           <h1>Tell us what happened.</h1>
           <p className="page-lead">
-            If macOS or Windows blocked the app, a folder went missing, or a file landed somewhere
-            unexpected, write it here.
-          </p>
-          <p className="contact-note">
-            There is no account to look up. The form opens your email app with the note filled in, and
-            it sends from you to {CONTACT_EMAIL}.
+            Your Mac or PC blocked the app, a folder went missing, or a file landed somewhere you
+            didn’t expect? We’re happy to help.
           </p>
         </div>
         <form className="contact-form" onSubmit={onSubmit}>
@@ -318,9 +335,10 @@ export function ContactPage() {
             <textarea name="message" required rows={6} placeholder="What happened, and what you expected" />
           </label>
           <div className="form-actions">
-            {sent ? <p className="form-sent">Your email app should open with this note. Send it from there.</p> : null}
-            <button className="btn btn-primary" type="submit">
-              Send
+            {status === "sent" ? <p className="form-sent">Your message has been sent.</p> : null}
+            {status === "error" ? <p className="form-error">{error}</p> : null}
+            <button className="btn btn-primary" type="submit" disabled={status === "sending"}>
+              {status === "sending" ? "Sending..." : "Send"}
             </button>
           </div>
         </form>
