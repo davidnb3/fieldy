@@ -1,90 +1,33 @@
 # Fieldy
 
-Desktop app for automated audio ingest, classification, metadata tagging, library management, and in-app playback. Inspired by a highly simplified Soundly workflow: drop recordings, keep the original file untouched, classify from an in-memory 16 kHz mono view using **0.96 s patches**, then move or copy the original into a folder named after the winning **AudioSet class** (or `Mixed`).
-
-Architecture for agents: `.cursor/rules/` (always-on `00-architecture.mdc`) plus `docs/ARCHITECTURE.md`. History of the original 11 phases: `docs/IMPLEMENTATION.md`.
-
-**Status (2026-09-22):** Original phases **1–11 are done**, plus later UX: move/copy ingest, undo/redo, WAV/AIFF/FLAC/MP3, drop-zone progress, library-root relocate/fresh, placement why, row select + keyboard/batch, sample-tool player (level, loop, autoplay, pitch/tempo), window chrome and empty states. Product name is **Fieldy** (repo `/Users/davidpieri/Fieldy`). Tests: `python -m pytest python/tests -q` only — no Electron UI tests. Marketing home (this repo, not the desktop app): `cd web && npm install && npm run dev`.
-
-## What the app does
-
-- First run: pick a **library root** and whether drops **move or copy**. Folders are AudioSet class names created on demand, plus **`Mixed`**.
-- Drop WAV, AIFF, FLAC, or MP3 files or folders. Python classifies them. **Move** (default) tags the original and relocates it; **Copy** (Settings) leaves the original untagged and adds a tagged library file. Undo reverses the last drop. The drop zone shows overall progress while files are added.
-- Destination is the top **non-Silence** class from YAMNet frames (mean-pool active patches so long quiet forest takes are not all filed as Silence). Silence may still appear as a tag.
-- Library explorer: **Libraries** (Recently added, Starred, user collections) plus class folders. Top **app bar** (inline logo, Show/Hide drop zone, Undo/Redo, Settings). Click rows to select; Space / arrows / Delete / F2 / S. Move (existing folders only, or drag onto a folder; batch on selection), star, collections (Fieldy-only lists, not disk folders), rename / delete / reclassify / Settings via the shared in-app **dialog** (not `window.prompt` / `window.confirm`). **Reclassify** on a file or folder. Right-click for Show in Finder and the same actions. Drag originals out to Finder or a DAW.
-- **▶** plays in a bottom player (waveform, level, loop, rewind, pitch/tempo, autoplay) when a file is selected. Chromium hears a temp 16-bit copy; the library file stays in its original format.
+Fieldy is a desktop library for your own recordings. Drop WAV, AIFF, FLAC, or MP3 files or folders and it files each original into a folder named after the sound, or into `Mixed` when no class wins. The file on disk stays in its original format. You can search the library, star files, group them into collections, and play them in the app. There is no account and no cloud library.
 
 ## Stack
 
-| Layer | Tech |
-| --- | --- |
-| Desktop UI | Electron (HTML/CSS/JS), context isolation + preload (`window.fieldy`) |
-| Backend | Python 3.12 child process, NDJSON over stdin/stdout |
-| Analysis | YAMNet via TensorFlow Hub (native long-file framing) |
-| Audio I/O | `soundfile` + `soxr` for 16 kHz mono analysis; temp PCM_16 for playback only |
-| Tags | `mutagen` (`Fieldy`) on the **original** file (ID3 on WAV/AIFF/MP3, Vorbis on FLAC) |
+- Electron
+- Python 3.12
+- YAMNet (TensorFlow)
+- soundfile, soxr, mutagen
+- Vite and React (the website)
 
-## Dev environment
+## Run locally
 
-Python **3.12** (not macOS `/usr/bin/python3`) and **Node.js**. On this machine: Homebrew `python@3.12` and `node`.
+Python 3.12 and Node.js.
+
+App, from the repo root:
 
 ```bash
-brew install python@3.12 node
-
-cd /Users/davidpieri/Fieldy
-/opt/homebrew/bin/python3.12 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install -U pip wheel
 pip install -r python/requirements.txt
-
-cd electron
-npm install
-# if Electron’s binary is missing:
-node node_modules/electron/install.js
-
-cd /Users/davidpieri/Fieldy
-python -c "import tensorflow as tf, tensorflow_hub as hub; print(tf.__version__, hub.__version__)"
-python -m pytest python/tests -q
 python scripts/fetch_yamnet.py
-printf '%s\n' '{"id":"1","method":"ping"}' | python python/main.py
+npm install --prefix electron
 npm start
 ```
 
-Electron spawns `.venv/bin/python` when developing (`PYTHONUNBUFFERED=1`, `FIELDY_ROOT` = repo). Packaged builds spawn `python-runtime` from extraResources. That runtime is a relocatable CPython (python-build-standalone) with `python/requirements-pack.txt` installed into it — the user’s Mac does not need Homebrew. The listening model is `models/yamnet` (gitignored; fetch script above) — not downloaded on first drop.
+Site:
 
-Root `npm start` runs `npm start --prefix electron`.
-
-Unsigned Mac app (this Mac, same CPU arch): `npm run pack`, then zip `electron/dist/mac-arm64/Fieldy.app` (or `mac/` on Intel) for the website. Gatekeeper asks the user to allow it.
-
-Unsigned Windows app (x64, built on this Mac): `npm run pack:win`. Link `electron/dist/Fieldy-windows-x64.zip`. The user unzips it and runs `Fieldy.exe`. Windows SmartScreen asks them to allow it. The Windows Python tree is `python-runtime-win` and is not the Mac runtime.
-
-Signed installer (DMG): `npm run dist:mac`. Requires a **Developer ID Application** certificate in the login keychain (or `CSC_LINK` / `CSC_KEY_PASSWORD`) and one notarization set:
-
-- `APPLE_API_KEY` (path to the `.p8` file), `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`
-- or `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
-- or `APPLE_KEYCHAIN_PROFILE` (optional `APPLE_KEYCHAIN`)
-
-The script stops if those are missing, so it does not emit an unsigned DMG. Output is under `electron/dist/`. Build on Apple Silicon for arm64 and on Intel for x64; each DMG carries the matching `python-runtime`.
-
-Reset onboarding: quit the app, delete `~/.Fieldy/pointer.json` (legacy `~/.soundly-lite/pointer.json` is still read if the new pointer is missing).
-
-## Directory layout
-
+```bash
+npm install --prefix web
+npm run site
 ```
-Fieldy/
-├── electron/                 # Desktop shell (main, preload, renderer)
-├── python/                   # Automation + classifier
-│   └── core/                 # config, preprocess, classifier, mapper, playback, …
-├── config/                   # yamnet_class_map.csv, audioset_ontology.json, schema
-├── data/                     # Optional library root (gitignored audio)
-├── web/                      # Marketing home (Vite + React)
-└── .cursor/rules/
-```
-
-## IPC
-
-See `.cursor/rules/03-ipc-bridge.mdc`. Python is long-lived. Renderer never mutates the filesystem.
-
-## Not in the app yet
-
-Paid code signing. The site can link the unsigned Mac `.app` (`npm run pack`) and the unsigned Windows zip (`npm run pack:win`). `npm run dist:mac` is still there if a Developer ID is added later.
