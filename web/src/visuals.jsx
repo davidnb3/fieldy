@@ -617,21 +617,33 @@ export function LocalFolderVisual() {
 
 export function OfflineFreeVisual() {
   return (
-    <svg className="feature-svg" viewBox="0 0 480 340" role="img" aria-label="Offline and free">
-      <rect x="1" y="1" width="478" height="338" rx="20" fill="#24262b" stroke="#3c4043" />
-      <circle className="anim-ring" cx="240" cy="150" r="72" fill="none" stroke="#ff8a3d" strokeWidth="3" opacity="0.35" />
-      <circle cx="240" cy="150" r="56" fill="#1a1b1e" stroke="#ff8a3d" strokeWidth="2" />
-      <g transform="translate(214 124)">
-        <rect x="10" y="18" width="32" height="36" rx="4" fill="#ff8a3d" />
-        <path d="M16 18v-8a10 10 0 0 1 20 0v8" fill="none" stroke="#ff8a3d" strokeWidth="3" />
-      </g>
-      <text x="240" y="248" textAnchor="middle" fill="#e8eaed" fontSize="20" fontFamily="Syne, sans-serif" fontWeight="700">
-        Free · offline
-      </text>
-      <text x="240" y="276" textAnchor="middle" fill="#9aa0a6" fontSize="13" fontFamily="Inter, sans-serif">
-        After install, no internet required
-      </text>
-    </svg>
+    <div className="free-scene" role="img" aria-label="No account, no cloud, and free">
+      <div className="free-stage">
+        <span className="free-wash free-wash-blue" aria-hidden="true" />
+        <span className="free-wash free-wash-green" aria-hidden="true" />
+        <span className="free-wash free-wash-orange" aria-hidden="true" />
+        <div className="free-float free-float-account">
+          <div className="free-tile free-tile-account">
+            <MaterialIcon name="person_off" />
+            <p className="free-tile-title">No account</p>
+            <p>Nothing to sign in to</p>
+          </div>
+        </div>
+        <div className="free-float free-float-cloud">
+          <div className="free-tile free-tile-cloud">
+            <MaterialIcon name="cloud_off" />
+            <p className="free-tile-title">No cloud</p>
+            <p>Nothing uploaded</p>
+          </div>
+        </div>
+        <div className="free-float free-float-price">
+          <div className="free-tile free-tile-price">
+            <p className="free-amount">Free</p>
+            <p>No subscription. No shop.</p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
