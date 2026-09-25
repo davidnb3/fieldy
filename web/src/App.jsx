@@ -5,7 +5,6 @@ import {
   DragOutVisual,
   LocalFolderVisual,
   OfflineFreeVisual,
-  HeroGraphic,
 } from "./visuals.jsx";
 
 function jumpTo(id) {
@@ -27,13 +26,13 @@ const DOWNLOADS = {
   mac: {
     id: "mac",
     label: "Download for Mac",
-    href: "/downloads/Fieldy-mac-arm64.zip",
+    href: "https://pub-e44d3963d21b4f35a226df362031034a.r2.dev/Fieldy-mac-arm64.zip",
     file: "Fieldy-mac-arm64.zip",
   },
   windows: {
     id: "windows",
     label: "Download for Windows",
-    href: "/downloads/Fieldy-windows-x64.zip",
+    href: "https://pub-e44d3963d21b4f35a226df362031034a.r2.dev/Fieldy-windows-x64.zip",
     file: "Fieldy-windows-x64.zip",
   },
 };
@@ -159,6 +158,12 @@ export default function App() {
 
       <main id="top">
         <section className="hero">
+          <img
+            className="hero-photo"
+            src="/fieldy-hero.jpg?v=1"
+            alt=""
+            aria-hidden="true"
+          />
           <div className="hero-bg" />
           <div className="hero-inner">
             <div className="hero-copy">
@@ -172,9 +177,6 @@ export default function App() {
               <a className="see-features" href="#features" onClick={jumpTo("features")}>
                 See features
               </a>
-            </div>
-            <div className="hero-visual">
-              <HeroGraphic />
             </div>
           </div>
         </section>

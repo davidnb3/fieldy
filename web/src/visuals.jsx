@@ -21,6 +21,27 @@ const LIBRARY_FOLDERS = [
   "Train",
 ];
 
+const WIND_FILES = ["gust.wav", "howl.aiff", "breeze.wav", "gale.flac", "draft.mp3", "whistle.wav"];
+
+const PROGRAMS = [
+  "Logic Pro",
+  "Pro Tools",
+  "Ableton",
+  "Reaper",
+  "Cubase",
+  "Studio One",
+  "FL Studio",
+  "Nuendo",
+  "Bitwig",
+  "GarageBand",
+  "Audition",
+  "Premiere",
+  "Resolve",
+  "Final Cut",
+  "Finder",
+  "Reason",
+];
+
 function MaterialIcon({ name }) {
   return (
     <span className="material-symbols-outlined" aria-hidden="true">
@@ -29,29 +50,45 @@ function MaterialIcon({ name }) {
   );
 }
 
-export function DropFiledVisual() {
-  const trackRef = useRef(null);
-  const rows = [...LIBRARY_FOLDERS, ...LIBRARY_FOLDERS];
-
+function useSpin(trackRef, count, wheel) {
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const first = track.querySelector("li");
-    const rowH = first?.getBoundingClientRect().height || 42;
-    const loopH = rowH * LIBRARY_FOLDERS.length;
+    const rowH = first?.getBoundingClientRect().height || (wheel ? 72 : 42);
+    const loopH = rowH * count;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    let y = 0;
+    let y = wheel ? loopH : 0;
     let vel = 0;
     let raf = 0;
     let last = 0;
     let played = false;
 
+    const paint = () => {
+      const shift = wheel ? -y : -y;
+      track.style.transform = `translateY(${shift}px)`;
+      if (!wheel) return;
+      const viewH = track.parentElement?.clientHeight || 1;
+      const mid = viewH / 2;
+      for (const li of track.children) {
+        const rel = li.offsetTop + rowH / 2 - y - mid;
+        const norm = Math.max(-1.15, Math.min(1.15, rel / (viewH * 0.46)));
+        const angle = norm * 58;
+        const scale = Math.max(0.64, 1 - Math.abs(norm) * 0.34);
+        li.style.transform = `rotateX(${-angle}deg) scale(${scale})`;
+        li.style.opacity = String(Math.max(0.22, 1 - Math.abs(norm) * 0.7));
+      }
+    };
+
     const stop = () => {
       cancelAnimationFrame(raf);
       raf = 0;
     };
+
+    paint();
+    if (reduce) return;
 
     const tick = (now) => {
       const dt = Math.min(0.033, (now - last) / 1000);
@@ -59,34 +96,39 @@ export function DropFiledVisual() {
 
       y += vel * dt;
       vel *= Math.pow(0.5, dt / 0.42);
-      if (vel < 36) {
+      if (Math.abs(vel) < 36) {
         const target = Math.round(y / rowH) * rowH;
         y += (target - y) * Math.min(1, dt * 12);
         vel *= 0.82;
-        if (Math.abs(target - y) < 0.5 && vel < 10) {
+        if (Math.abs(target - y) < 0.5 && Math.abs(vel) < 10) {
           y = target;
           vel = 0;
-          if (y >= loopH) y -= loopH;
-          track.style.transform = `translateY(${-y}px)`;
+          if (wheel) {
+            if (y <= 0) y += loopH;
+          } else if (y >= loopH) y -= loopH;
+          paint();
           stop();
           return;
         }
       }
 
-      if (y >= loopH) y -= loopH;
-      track.style.transform = `translateY(${-y}px)`;
+      if (wheel) {
+        if (y <= 0) y += loopH;
+      } else if (y >= loopH) y -= loopH;
+      paint();
       raf = requestAnimationFrame(tick);
     };
 
     const start = () => {
       if (played) return;
       played = true;
-      vel = 1800 + Math.random() * 700;
+      const speed = 1800 + Math.random() * 700;
+      vel = wheel ? -speed : speed;
       last = performance.now();
       raf = requestAnimationFrame(tick);
     };
 
-    const target = track.closest(".feature-row") || track.closest(".library-scene") || track;
+    const target = track.closest(".feature-row") || track.closest(".library-scene") || track.closest(".drag-scene") || track;
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -102,7 +144,13 @@ export function DropFiledVisual() {
       stop();
       io.disconnect();
     };
-  }, []);
+  }, [trackRef, count, wheel]);
+}
+
+export function DropFiledVisual() {
+  const trackRef = useRef(null);
+  const rows = [...LIBRARY_FOLDERS, ...LIBRARY_FOLDERS];
+  useSpin(trackRef, LIBRARY_FOLDERS.length, false);
 
   return (
     <div className="library-scene" role="img" aria-label="Library folders scrolling by class name">
@@ -140,34 +188,35 @@ export function DropFiledVisual() {
 
 
 export function DragOutVisual() {
+  const folderRef = useRef(null);
+  const reelRef = useRef(null);
+  const files = [...WIND_FILES, ...WIND_FILES];
+  const programs = [...PROGRAMS, ...PROGRAMS];
+  useSpin(folderRef, WIND_FILES.length, false);
+  useSpin(reelRef, PROGRAMS.length, true);
+
   return (
-    <svg className="feature-svg" viewBox="0 0 480 340" role="img" aria-label="Dragging a file into other software">
-      <rect x="1" y="1" width="478" height="338" rx="20" fill="#24262b" stroke="#3c4043" />
-      <rect x="36" y="48" width="168" height="244" rx="12" fill="#1a1b1e" stroke="#3c4043" />
-      <text x="48" y="76" fill="#ff8a3d" fontSize="11" fontWeight="600" fontFamily="Inter, sans-serif">
-        LIBRARY
-      </text>
-      {[0, 1, 2, 3].map((i) => (
-        <g key={i} transform={`translate(48 ${96 + i * 42})`}>
-          <rect width="144" height="32" rx="6" fill={i === 1 ? "#3a2e26" : "#2a2c31"} />
-          <rect x="8" y="10" width="14" height="12" rx="2" fill="#ff8a3d" opacity={i === 1 ? 1 : 0.4} />
-          <rect x="30" y="12" width={90 - i * 10} height="8" rx="2" fill="#9aa0a6" opacity="0.5" />
-        </g>
-      ))}
-      <g className="anim-drag">
-        <rect x="210" y="150" width="92" height="40" rx="8" fill="#ff8a3d" />
-        <text x="256" y="175" textAnchor="middle" fill="#1a1b1e" fontSize="12" fontWeight="600" fontFamily="Inter, sans-serif">
-          take.wav
-        </text>
-      </g>
-      <rect x="320" y="88" width="124" height="164" rx="12" fill="#1a1b1e" stroke="#3c4043" strokeDasharray="6 6" />
-      <text x="382" y="168" textAnchor="middle" fill="#9aa0a6" fontSize="13" fontFamily="Inter, sans-serif">
-        DAW
-      </text>
-      <text x="382" y="190" textAnchor="middle" fill="#9aa0a6" fontSize="12" fontFamily="Inter, sans-serif">
-        Finder
-      </text>
-    </svg>
+    <div className="drag-scene" role="img" aria-label="Files in the Wind folder can be dragged into any other program">
+      <div className="library-card">
+        <p className="library-label">Wind</p>
+        <div className="library-mask">
+          <ul className="library-track" ref={folderRef}>
+            {files.map((name, i) => (
+              <li key={`${name}-${i}`}>{name}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      <div className="reel">
+        <div className="reel-window">
+          <ul className="reel-track" ref={reelRef}>
+            {programs.map((name, i) => (
+              <li key={`${name}-${i}`}>{name}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -217,38 +266,3 @@ export function OfflineFreeVisual() {
   );
 }
 
-export function HeroGraphic() {
-  return (
-    <svg className="hero-graphic" viewBox="0 0 640 360" role="img" aria-hidden="true">
-      <defs>
-        <linearGradient id="heroFade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ff8a3d" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#ff8a3d" stopOpacity="0" />
-        </linearGradient>
-        <clipPath id="heroClip">
-          <rect width="640" height="360" rx="24" />
-        </clipPath>
-      </defs>
-      <g clipPath="url(#heroClip)">
-        <rect width="640" height="360" fill="url(#heroFade)" />
-        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => {
-          const h = 40 + ((i * 37) % 160);
-          return (
-            <rect
-              key={i}
-              className="hero-bar"
-              style={{ animationDelay: `${i * 0.12}s` }}
-              x={48 + i * 46}
-              y={280 - h}
-              width="22"
-              height={h}
-              rx="11"
-              fill="#ff8a3d"
-              opacity={0.25 + (i % 4) * 0.12}
-            />
-          );
-        })}
-      </g>
-    </svg>
-  );
-}
