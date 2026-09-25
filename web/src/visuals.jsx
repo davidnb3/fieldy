@@ -24,22 +24,19 @@ const LIBRARY_FOLDERS = [
 const WIND_FILES = ["gust.wav", "howl.aiff", "breeze.wav", "gale.flac", "draft.mp3", "whistle.wav"];
 
 const PROGRAMS = [
-  "Logic Pro",
-  "Pro Tools",
-  "Ableton",
-  "Reaper",
-  "Cubase",
-  "Studio One",
-  "FL Studio",
-  "Nuendo",
-  "Bitwig",
-  "GarageBand",
-  "Audition",
-  "Premiere",
-  "Resolve",
-  "Final Cut",
-  "Finder",
-  "Reason",
+  { name: "Ableton Live", src: "/logos/abletonlive.svg" },
+  { name: "Pro Tools", src: "/logos/protools.svg" },
+  { name: "Bitwig", src: "/logos/bitwig.svg" },
+  { name: "Adobe Audition", src: "/logos/adobeaudition.svg" },
+  { name: "Premiere Pro", src: "/logos/adobepremierepro.svg" },
+  { name: "After Effects", src: "/logos/adobeaftereffects.svg" },
+  { name: "Photoshop", src: "/logos/adobephotoshop.svg" },
+  { name: "Reason", src: "/logos/reasonstudios.svg" },
+  { name: "Audacity", src: "/logos/audacity.svg" },
+  { name: "Ardour", src: "/logos/ardour.svg" },
+  { name: "Steinberg", src: "/logos/steinberg.svg" },
+  { name: "VLC", src: "/logos/vlcmediaplayer.svg" },
+  { name: "OBS", src: "/logos/obsstudio.svg" },
 ];
 
 function MaterialIcon({ name }) {
@@ -95,7 +92,7 @@ function useSpin(trackRef, count, wheel) {
       last = now;
 
       y += vel * dt;
-      vel *= Math.pow(0.5, dt / 0.42);
+      vel *= Math.pow(0.5, dt / (wheel ? 1.4 : 0.42));
       if (Math.abs(vel) < 36) {
         const target = Math.round(y / rowH) * rowH;
         y += (target - y) * Math.min(1, dt * 12);
@@ -122,7 +119,7 @@ function useSpin(trackRef, count, wheel) {
     const start = () => {
       if (played) return;
       played = true;
-      const speed = 1800 + Math.random() * 700;
+      const speed = wheel ? 260 : 1800 + Math.random() * 700;
       vel = wheel ? -speed : speed;
       last = performance.now();
       raf = requestAnimationFrame(tick);
@@ -210,8 +207,10 @@ export function DragOutVisual() {
       <div className="reel">
         <div className="reel-window">
           <ul className="reel-track" ref={reelRef}>
-            {programs.map((name, i) => (
-              <li key={`${name}-${i}`}>{name}</li>
+            {programs.map((program, i) => (
+              <li key={`${program.name}-${i}`}>
+                <img src={program.src} alt={program.name} />
+              </li>
             ))}
           </ul>
         </div>

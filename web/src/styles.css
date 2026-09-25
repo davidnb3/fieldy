@@ -315,10 +315,13 @@ p {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(20px, 2vw, 26px);
-  font-weight: 600;
-  color: #fff;
-  letter-spacing: -0.02em;
+}
+
+.reel-track li img {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  display: block;
 }
 
 .library-card {
