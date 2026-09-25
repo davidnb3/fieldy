@@ -139,6 +139,29 @@ body {
   flex-shrink: 0;
 }
 
+.warmup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  background: rgba(26, 27, 30, 0.82);
+}
+
+.warmup-overlay p {
+  margin: 0;
+  text-align: center;
+}
+
+#warmup-title {
+  font-size: 20px;
+  font-weight: 650;
+}
+
 .library-body {
   display: flex;
   flex-direction: column;
@@ -377,19 +400,23 @@ button {
 }
 
 .ingest-panel {
+  position: relative;
   margin: 0 0 16px;
-  background: var(--panel);
+  border: 2px dashed rgba(255, 138, 61, 0.45);
   border-radius: 12px;
   overflow: hidden;
+  background:
+    radial-gradient(90% 140% at 20% 110%, rgba(90, 216, 164, 0.1), transparent 50%),
+    radial-gradient(70% 80% at 80% 100%, rgba(255, 138, 61, 0.16), transparent 55%),
+    var(--panel);
 }
 
 .ingest-panel-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line);
+  min-height: 48px;
+  padding: 8px 8px 8px 16px;
 }
 
 .ingest-summary {
@@ -405,20 +432,30 @@ button {
 }
 
 .ingest-panel.has-errors {
-  box-shadow: inset 3px 0 0 var(--danger);
+  border-color: rgba(229, 83, 75, 0.55);
 }
 
 .ingest-panel-title {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 #close-ingest {
-  padding: 6px 10px;
-  font-size: 12px;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
 }
 
 .job-list {
@@ -771,7 +808,8 @@ aside h2 {
 .player-range-btn,
 .play-btn,
 .favorite-btn,
-#close-dropzone {
+#close-dropzone,
+#close-ingest {
   border: 1px solid transparent;
 }
 
@@ -781,7 +819,8 @@ aside h2 {
 .player-range-btn:hover:not(:disabled),
 .play-btn:hover:not(:disabled),
 .favorite-btn:hover:not(:disabled),
-#close-dropzone:hover:not(:disabled) {
+#close-dropzone:hover:not(:disabled),
+#close-ingest:hover:not(:disabled) {
   border-color: rgba(255, 138, 61, 0.4);
 }
 

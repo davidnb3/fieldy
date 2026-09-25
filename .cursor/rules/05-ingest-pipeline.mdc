@@ -8,7 +8,7 @@ alwaysApply: false
 
 Orchestrator: `python/core/ingest.py` `ingest_paths(paths, config, classifier=..., on_progress=...)`.
 
-WAV, AIFF, FLAC, and MP3 (`.wav` / `.wave` / `.aif` / `.aiff` / `.flac` / `.mp3`). Directories are walked for those types. Per-file errors stay in the job list; the batch continues.
+WAV, AIFF, FLAC, and MP3 (`.wav` / `.wave` / `.aif` / `.aiff` / `.flac` / `.mp3`). Directories are walked for those types. Per-file errors stay in the job list (`core.errors.explain`); the batch continues.
 
 For each path:
 
@@ -29,4 +29,4 @@ WAV/AIFF/MP3 ID3 plus FLAC Vorbis, desc/key `Fieldy`. See `.cursor/rules/08-meta
 
 ## Drop zone UI
 
-See `.cursor/rules/09-dropzone.mdc`. `#dropzone` + `#dropzone-progress` + `#ingest-jobs`; drop zone closable from `#app-bar`.
+See `.cursor/rules/09-dropzone.mdc`. `#dropzone` + `#dropzone-progress` + `#ingest-panel` / `#ingest-jobs`. Drop zone and last drop closable from `#app-bar`.

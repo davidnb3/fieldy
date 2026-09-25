@@ -5,6 +5,10 @@ out/
 .venv/
 venv/
 python-runtime/
+python-runtime-win/
+python-runtime-cache/
+electron/build/icon.icns
+electron/build/icon.iconset/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -22,3 +26,4 @@ data/library/
 *.WAV
 .env
 *.log
+web/public/downloads/*.zip

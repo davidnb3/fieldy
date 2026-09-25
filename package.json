@@ -3,7 +3,10 @@
   "private": true,
   "scripts": {
     "start": "npm start --prefix electron",
+    "site": "npm run dev --prefix web",
     "install:electron": "npm install --prefix electron",
-    "pack": "npm run prepare-pack --prefix electron && npm run pack --prefix electron"
+    "pack": "npm run prepare-pack --prefix electron && npm run pack --prefix electron",
+    "pack:win": "bash scripts/prepare-pack-resources.sh win && npm run pack:win --prefix electron && bash scripts/zip-win-pack.sh",
+    "dist:mac": "bash scripts/dist-mac.sh"
   }
 }

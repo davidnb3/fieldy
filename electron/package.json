@@ -1,59 +1,18 @@
 {
   "name": "Fieldy",
+  "productName": "Fieldy",
   "version": "0.1.0",
   "private": true,
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "pack": "electron-builder --dir",
+    "pack": "FIELDY_UNSIGNED=1 CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir --mac",
+    "pack:win": "FIELDY_UNSIGNED=1 FIELDY_RUNTIME_DIR=../python-runtime-win CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64 --dir",
+    "dist": "bash ../scripts/dist-mac.sh",
     "prepare-pack": "bash ../scripts/prepare-pack-resources.sh"
   },
   "devDependencies": {
     "electron": "^32.0.0",
     "electron-builder": "^25.1.8"
-  },
-  "build": {
-    "appId": "app.fieldy",
-    "productName": "Fieldy",
-    "asar": true,
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "**/*",
-      "!dist/**"
-    ],
-    "extraResources": [
-      {
-        "from": "../python",
-        "to": "python",
-        "filter": ["**/*", "!**/__pycache__/**", "!**/*.pyc"]
-      },
-      {
-        "from": "../config",
-        "to": "config"
-      },
-      {
-        "from": "../models",
-        "to": "models"
-      },
-      {
-        "from": "../python-runtime",
-        "to": "python-runtime"
-      },
-      {
-        "from": "icons",
-        "to": "icons"
-      }
-    ],
-    "mac": {
-      "icon": "icons/icon.png",
-      "category": "public.app-category.music",
-      "target": ["dir"]
-    },
-    "win": {
-      "icon": "icons/icon.ico",
-      "target": ["dir"]
-    }
   }
 }

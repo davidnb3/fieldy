@@ -4,6 +4,7 @@ const dropzone = document.getElementById("dropzone");
 const dropzoneTitle = document.getElementById("dropzone-title");
 const closeDropzone = document.getElementById("close-dropzone");
 const toggleDropzone = document.getElementById("toggle-dropzone");
+const toggleIngest = document.getElementById("toggle-ingest");
 const openSettings = document.getElementById("open-settings");
 const undoBtn = document.getElementById("undo");
 const redoBtn = document.getElementById("redo");
@@ -67,6 +68,7 @@ const libraryMissingLater = document.getElementById("library-missing-later");
 const backendBanner = document.getElementById("backend-banner");
 const backendBannerText = document.getElementById("backend-banner-text");
 const backendBannerRetry = document.getElementById("backend-banner-retry");
+const warmupOverlay = document.getElementById("warmup-overlay");
 const dropzoneHint = document.getElementById("dropzone-hint");
 const dropzoneProgress = document.getElementById("dropzone-progress");
 const dropzoneProgressLabel = document.getElementById("dropzone-progress-label");
@@ -78,6 +80,8 @@ const STARRED_VIEW = "Starred";
 const PINNED_VIEWS = new Set([RECENT_VIEW, STARRED_VIEW]);
 const COLLECTION_PREFIX = "collection:";
 let ingesting = false;
+let warming = false;
+let warmedUp = false;
 let libraryBusy = false;
 let historyState = { canUndo: false, canRedo: false };
 let appConfig = null;
@@ -224,12 +228,25 @@ function isAudioPath(filePath) {
   return /\.(wav|wave|aif|aiff|flac|mp3)$/i.test(filePath);
 }
 
+function ingestPanelOpen() {
+  return Boolean(ingestPanel) && !ingestPanel.hidden;
+}
+
+function setIngestPanelOpen(open) {
+  if (!ingestPanel) return;
+  ingestPanel.hidden = !open;
+  if (toggleIngest) {
+    toggleIngest.textContent = open ? "Hide last drop" : "Show last drop";
+    toggleIngest.setAttribute("aria-pressed", open ? "true" : "false");
+  }
+}
+
 function showIngestPanel() {
-  ingestPanel.hidden = false;
+  setIngestPanelOpen(true);
 }
 
 function hideIngestPanel() {
-  ingestPanel.hidden = true;
+  setIngestPanelOpen(false);
 }
 
 const STAGE_LABELS = {
@@ -520,8 +537,8 @@ function applyAppConfig(cfg, { applyDropzonePref = false } = {}) {
   const copy = appConfig.ingestMode === "copy";
   if (dropzoneHint) {
     dropzoneHint.textContent = copy
-      ? "WAV, AIFF, FLAC, and MP3. Fieldy listens, tags, and adds a copy to your library — the original stays where it is. The first file can take a minute while Fieldy gets ready."
-      : "WAV, AIFF, FLAC, and MP3. Fieldy listens, tags, and moves them into your library. The first file can take a minute while Fieldy gets ready.";
+      ? "WAV, AIFF, FLAC, and MP3. Fieldy listens, tags, and adds a copy to your library — the original stays where it is."
+      : "WAV, AIFF, FLAC, and MP3. Fieldy listens, tags, and moves them into your library. Move takes the original file off the desktop (or wherever you dropped it).";
   }
   if (applyDropzonePref) {
     setDropzoneOpen(appConfig.dropzoneOnLaunch !== false);
@@ -863,9 +880,10 @@ function showLibraryError(message) {
 }
 
 function applyHistoryButtons() {
-  const locked = ingesting || libraryBusy;
+  const locked = ingesting || libraryBusy || warming;
   if (undoBtn) undoBtn.disabled = locked || !historyState.canUndo;
   if (redoBtn) redoBtn.disabled = locked || !historyState.canRedo;
+  if (toggleIngest) toggleIngest.disabled = ingesting;
 }
 
 async function syncHistory() {
@@ -1209,6 +1227,7 @@ async function refresh() {
   renderTree(tree);
   await syncHistory();
   drawWaveform();
+  ensureReady();
 }
 
 function emptyLibraryRecoveryCopy() {
@@ -1361,9 +1380,32 @@ function appendEmptyState(parent, { title, body, danger = false } = {}) {
 }
 
 function dropzoneHintForEmpty() {
+  const moveHint =
+    appConfig?.ingestMode === "copy"
+      ? "Fieldy tags them and adds a copy to your library."
+      : "Fieldy tags them and moves the original into AudioSet class folders.";
   return dropzoneOpen()
-    ? "Drop WAV, AIFF, FLAC, or MP3 on the drop zone above. Fieldy tags them and files them into AudioSet class folders."
-    : "Show the drop zone from the toolbar, then drop WAV, AIFF, FLAC, or MP3. Fieldy tags them and files them into AudioSet class folders.";
+    ? `Drop WAV, AIFF, FLAC, or MP3 on the drop zone above. ${moveHint}`
+    : `Show the drop zone from the toolbar, then drop WAV, AIFF, FLAC, or MP3. ${moveHint}`;
+}
+
+async function ensureReady() {
+  if (warmedUp || warming) return;
+  if (!appConfig || appConfig.libraryRootProblem) return;
+  warming = true;
+  applyHistoryButtons();
+  warmupOverlay?.classList.remove("hidden");
+  try {
+    await window.fieldy.call("warmup");
+    warmedUp = true;
+  } catch (err) {
+    showLibraryError(err);
+  } finally {
+    warming = false;
+    warmupOverlay?.classList.add("hidden");
+    applyHistoryButtons();
+    renderFiles();
+  }
 }
 
 function visibleFolders() {
@@ -2387,14 +2429,14 @@ saveButton.addEventListener("click", async () => {
 ["dragenter", "dragover"].forEach((ev) => {
   dropzone.addEventListener(ev, (e) => {
     e.preventDefault();
-    if (!ingesting && !draggingOut) dropzone.classList.add("dragover");
+    if (!ingesting && !warming && !draggingOut) dropzone.classList.add("dragover");
   });
 });
 
 dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
 
 async function runClassifyAndIngest(paths, { busyTitle, doneLabel }) {
-  if (ingesting || libraryBusy || !paths.length) return;
+  if (ingesting || warming || libraryBusy || !paths.length) return;
   ingesting = true;
   if (closeIngest) closeIngest.disabled = true;
   setDropzoneOpen(true);
@@ -2474,7 +2516,7 @@ async function runClassifyAndIngest(paths, { busyTitle, doneLabel }) {
 
 function classifyExisting(paths) {
   return runClassifyAndIngest(paths, {
-    busyTitle: "Updating files… the first one can take a minute",
+    busyTitle: "Updating files…",
     doneLabel: "reclassified",
   });
 }
@@ -2486,6 +2528,10 @@ closeIngest.addEventListener("click", () => {
 
 closeDropzone.addEventListener("click", () => setDropzoneOpen(false));
 toggleDropzone.addEventListener("click", () => setDropzoneOpen(!dropzoneOpen()));
+toggleIngest?.addEventListener("click", () => {
+  if (ingesting) return;
+  setIngestPanelOpen(!ingestPanelOpen());
+});
 openSettings.addEventListener("click", () => {
   openSettingsDialog();
 });
@@ -2539,7 +2585,7 @@ dropzone.addEventListener("drop", async (e) => {
     return;
   }
   await runClassifyAndIngest(paths, {
-    busyTitle: "Adding to your library… the first file can take a minute",
+    busyTitle: "Adding to your library…",
     doneLabel: "ingested",
   });
 });
@@ -2551,6 +2597,7 @@ window.fieldy.onEvent((msg) => {
   }
   if (msg.name !== "progress") return;
   const payload = msg.payload || {};
+  if (payload.stage === "warmup") return;
   const { file, stage, destination, error, why } = payload;
   if (file) setDropzoneProgress(payload);
   if (!file) return;

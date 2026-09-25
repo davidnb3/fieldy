@@ -1,0 +1,9 @@
+# Runtime only (no pytest). librosa is a dev extra; the app resamples with soundfile + soxr.
+# tensorflow-hub still imports pkg_resources; setuptools 82+ dropped it.
+setuptools>=70,<81
+tensorflow>=2.15
+tensorflow-hub
+soundfile
+soxr
+numpy
+mutagen

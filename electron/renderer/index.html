@@ -22,7 +22,8 @@
         </div>
         <div class="app-bar-actions hidden" id="library-chrome">
           <button type="button" id="toggle-dropzone" class="secondary" aria-pressed="true">Hide drop zone</button>
-          <button type="button" id="undo" class="secondary icon-btn" aria-label="Undo" title="Undo" disabled>
+          <button type="button" id="toggle-ingest" class="secondary" aria-pressed="false">Show last drop</button>
+          <button type="button" id="undo" class="secondary icon-btn" aria-label="Undo last change (until you quit Fieldy)" title="Undo last change (until you quit Fieldy)" disabled>
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
               <path d="M3 7v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
               <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -49,7 +50,7 @@
       <div class="onboarding-card">
         <h1>Set up your library</h1>
         <p>
-          Choose a folder on this Mac. Fieldy will sort dropped audio into
+          Choose a folder on this computer. Fieldy will sort dropped audio into
           <a id="audioset-link" class="external-link" href="https://research.google.com/audioset/dataset/index.html" target="_blank" rel="noopener noreferrer">AudioSet class</a>
           folders (for example Siren, Animal, or Speech). The app never creates all AudioSet folders up front.
         </p>
@@ -68,8 +69,9 @@
               <option value="copy">Copy into the library</option>
             </select>
             <p class="hint">
-              Move relocates the file into your library. Copy leaves the original where it is and
-              adds a tagged file to the library. You can change this later in Settings.
+              Move takes the file from where it is (for example the desktop) and puts it in your
+              library. Copy leaves the original where it is and adds a tagged file to the library.
+              You can change this later in Settings.
             </p>
           </section>
         </div>
@@ -103,7 +105,7 @@
             </svg>
           </div>
           <p id="dropzone-title">Drop audio files or folders here</p>
-          <p id="dropzone-hint" class="hint">WAV, AIFF, FLAC, and MP3. Fieldy listens, tags, and files them into your library. The first file can take a minute while Fieldy gets ready.</p>
+          <p id="dropzone-hint" class="hint">WAV, AIFF, FLAC, and MP3. Fieldy listens, tags, and files them into your library. Move takes the original file into the library.</p>
           <div id="dropzone-progress" class="dropzone-progress hidden">
             <div class="dropzone-progress-meta">
               <span id="dropzone-progress-label">Getting ready…</span>
@@ -118,7 +120,11 @@
         <div class="ingest-panel-bar">
           <span class="ingest-panel-title">Last drop</span>
           <span id="ingest-summary" class="ingest-summary hidden"></span>
-          <button type="button" id="close-ingest" class="secondary">Close</button>
+          <button type="button" id="close-ingest" class="icon-btn dropzone-close" aria-label="Close last drop" title="Close last drop">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
         </div>
         <ul id="ingest-jobs" class="job-list"></ul>
       </div>
@@ -265,7 +271,7 @@
                 <option value="move">Move into the library</option>
                 <option value="copy">Copy into the library</option>
               </select>
-              <p id="settings-ingest-hint" class="hint">Move relocates the file. Copy leaves the original in place and tags only the library file. Undo reverses that drop.</p>
+              <p id="settings-ingest-hint" class="hint">Move takes the file into your library. Copy leaves the original in place and tags only the library file. Undo reverses that drop until you quit Fieldy.</p>
             </div>
             <div class="field">
               <label for="settings-threshold">Classification threshold</label>
@@ -313,6 +319,10 @@
       </div>
     </div>
     <div id="context-menu" class="context-menu hidden" role="menu" hidden></div>
+    <div id="warmup-overlay" class="warmup-overlay hidden" role="status" aria-live="polite">
+      <p id="warmup-title">Getting ready…</p>
+      <p class="hint">This can take a minute. Fieldy is preparing to listen to your files.</p>
+    </div>
     <script src="app.js"></script>
   </body>
 </html>

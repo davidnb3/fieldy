@@ -110,3 +110,26 @@ def test_batch_move_and_star_undo_together(tmp_path: Path):
 def test_normalize_new_name_rejects_paths():
     with pytest.raises(ValueError):
         normalize_new_name(Path("/lib/a.wav"), "../x.wav")
+
+
+def test_warmup_loads_injected_classifier(tmp_path: Path):
+    store, _library = _ready_store(tmp_path)
+
+    class Marker:
+        def __init__(self) -> None:
+            self.loaded = False
+
+        def load(self) -> None:
+            self.loaded = True
+
+    marker = Marker()
+    stages: list[str] = []
+    handlers = build_handlers(
+        store=store,
+        classifier=marker,
+        emit_progress=lambda payload: stages.append(payload.get("stage") or ""),
+    )
+    assert handlers["warmup"]({}) == {"ok": True, "ready": True}
+    assert marker.loaded is True
+    assert stages[0] == "warmup"
+    assert stages[-1] == "warmup"

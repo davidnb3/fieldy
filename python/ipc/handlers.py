@@ -13,7 +13,7 @@ from core.favorites import (
 )
 from core.fs_ops import rename_file
 from core.history import History, stash_deleted_file
-from core.ingest import ingest_paths
+from core.ingest import ingest_paths, get_classifier
 from core.library import (
     list_library,
     move_library_file,
@@ -256,6 +256,15 @@ def build_handlers(
             history.clear()
         return result
 
+    def warmup(_params: dict[str, Any]) -> dict[str, Any]:
+        if emit_progress:
+            emit_progress({"stage": "warmup", "pct": 0})
+        model = classifier or get_classifier()
+        model.load()
+        if emit_progress:
+            emit_progress({"stage": "warmup", "pct": 100})
+        return {"ok": True, "ready": True}
+
     def history_state(_params: dict[str, Any]) -> dict[str, bool]:
         return history.state()
 
@@ -278,6 +287,7 @@ def build_handlers(
         "create_collection": make_collection,
         "add_to_collection": add_file_to_collection,
         "prepare_playback": prepare_playback,
+        "warmup": warmup,
         "history_state": history_state,
         "undo": undo,
         "redo": redo,

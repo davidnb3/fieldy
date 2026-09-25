@@ -8,6 +8,8 @@ const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 
+app.setName("Fieldy");
+
 const AUDIO_EXTS = new Set([".wav", ".wave", ".aif", ".aiff", ".flac", ".mp3"]);
 
 function fieldyRoot() {
@@ -16,13 +18,18 @@ function fieldyRoot() {
   return path.join(__dirname, "..");
 }
 
+function bundledPython(root) {
+  if (process.platform !== "win32") return path.join(root, "python-runtime", "bin", "python");
+  const standalone = path.join(root, "python-runtime", "python.exe");
+  const venvStyle = path.join(root, "python-runtime", "Scripts", "python.exe");
+  if (fs.existsSync(standalone)) return standalone;
+  return venvStyle;
+}
+
 function pythonBin() {
   if (process.env.FIELDY_PYTHON) return path.resolve(process.env.FIELDY_PYTHON);
   const root = fieldyRoot();
-  const bundled =
-    process.platform === "win32"
-      ? path.join(root, "python-runtime", "Scripts", "python.exe")
-      : path.join(root, "python-runtime", "bin", "python");
+  const bundled = bundledPython(root);
   const venv =
     process.platform === "win32"
       ? path.join(root, ".venv", "Scripts", "python.exe")

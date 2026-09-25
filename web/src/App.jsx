@@ -1,0 +1,258 @@
+import { useEffect, useMemo, useState } from "react";
+import Logo from "./Logo.jsx";
+import {
+  DropFiledVisual,
+  DragOutVisual,
+  LocalFolderVisual,
+  OfflineFreeVisual,
+  HeroGraphic,
+} from "./visuals.jsx";
+
+function jumpTo(id) {
+  return (event) => {
+    event.preventDefault();
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    window.history.replaceState(null, "", `#${id}`);
+  };
+}
+
+function detectOs() {
+  if (typeof navigator === "undefined") return "mac";
+  const ua = navigator.userAgent;
+  if (/Windows/i.test(ua)) return "windows";
+  return "mac";
+}
+
+const DOWNLOADS = {
+  mac: {
+    id: "mac",
+    label: "Download for Mac",
+    href: "/downloads/Fieldy-mac-arm64.zip",
+    file: "Fieldy-mac-arm64.zip",
+  },
+  windows: {
+    id: "windows",
+    label: "Download for Windows",
+    href: "/downloads/Fieldy-windows-x64.zip",
+    file: "Fieldy-windows-x64.zip",
+  },
+};
+
+function DownloadButtons({ primaryClass = "btn-primary", secondaryClass = "btn-ghost" }) {
+  const os = useMemo(detectOs, []);
+  const primary = os === "windows" ? DOWNLOADS.windows : DOWNLOADS.mac;
+  const secondary = os === "windows" ? DOWNLOADS.mac : DOWNLOADS.windows;
+
+  return (
+    <div className="cta-row">
+      <a className={primaryClass} href={primary.href} download={primary.file} data-os={primary.id}>
+        {primary.label}
+      </a>
+      <a className={secondaryClass} href={secondary.href} download={secondary.file} data-os={secondary.id}>
+        {secondary.label}
+      </a>
+    </div>
+  );
+}
+
+const MAIN_FEATURES = [
+  {
+    id: "drop",
+    title: "Your Local Files Organized",
+    copy: [
+      "Drop WAV, AIFF, FLAC, or MP3 — files or folders — and Fieldy puts them into clear folders on disk.",
+      "When a take doesn’t fit one class, it goes in a “Mixed” folder. Your original files stay the original format. Matching class names are written as tags on the files, and you can search, sort, and filter the library.",
+    ],
+    Visual: DropFiledVisual,
+  },
+  {
+    id: "drag",
+    title: "Integrates with your Workflow & Tools. Anywhere.",
+    copy: [
+      "Pull files from Fieldy into any other DAW or editor.",
+      "Fieldy stays a library. It is not a walled garden, and it does not replace the apps you already use.",
+    ],
+    Visual: DragOutVisual,
+  },
+  {
+    id: "local",
+    title: "On your computer, not in the cloud",
+    copy: [
+      "There is no cloud library, no remote databank, and no login.",
+      "You pick a folder. That folder is the library. Fieldy never asks you to upload your recordings.",
+    ],
+    Visual: LocalFolderVisual,
+  },
+  {
+    id: "free",
+    title: "Works offline, and it’s free",
+    copy: [
+      "After install, Fieldy runs without the internet.",
+      "No subscription. No account. No shop. Just the files you already recorded.",
+    ],
+    Visual: OfflineFreeVisual,
+  },
+];
+
+const MORE = [
+  {
+    title: "Stars & collections",
+    body: "Star files you need again. Build collections as lists inside Fieldy — they are not extra folders on disk.",
+  },
+  {
+    title: "Listen in the app",
+    body: "Play a selection with a waveform, rewind, loop, mute, and pitch or tempo. The file on disk is never rewritten.",
+  },
+  {
+    title: "Search, sort, filter",
+    body: "Find folders and files quickly. Select many at once, then move, star, or add them in one step.",
+  },
+  {
+    title: "Move or copy",
+    body: "When you drop files, choose whether Fieldy moves them into the library or copies them and leaves the source.",
+  },
+  {
+    title: "Undo",
+    body: "A drop, a move, a rename, a delete — undo and redo from the app bar.",
+  },
+  {
+    title: "Tags on the file",
+    body: "Matching class names are written as tags on the original. Empty when nothing reached the threshold.",
+  },
+  {
+    title: "Available on Mac and Windows",
+    body: "A desktop app for Mac and Windows. Free to download, no account required.",
+  },
+  {
+    title: "No account",
+    body: "No collaboration cloud. No team login. The library lives in the folder you chose.",
+  },
+];
+
+export default function App() {
+  const [navSolid, setNavSolid] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setNavSolid(window.scrollY > 12);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  return (
+    <>
+      <header className={`nav ${navSolid ? "nav-solid" : ""}`}>
+        <div className="nav-inner">
+          <a className="nav-logo" href="#top" aria-label="Fieldy home" onClick={jumpTo("top")}>
+            <Logo height={22} />
+          </a>
+          <nav className="nav-links">
+            <a href="#features" onClick={jumpTo("features")}>
+              Features
+            </a>
+            <a href="#download" onClick={jumpTo("download")}>
+              Download
+            </a>
+          </nav>
+        </div>
+      </header>
+
+      <main id="top">
+        <section className="hero">
+          <div className="hero-bg" />
+          <div className="hero-inner">
+            <div className="hero-copy">
+              <h1>Your recordings. Your folders. Only on your computer.</h1>
+              <p className="lede">
+                Fieldy is a simple, free, offline desktop library. Drop the files you recorded, let it
+                organize them into folders describing the type of sound, then drag them into the tools you
+                already use.
+              </p>
+              <DownloadButtons />
+              <a className="see-features" href="#features" onClick={jumpTo("features")}>
+                See features
+              </a>
+            </div>
+            <div className="hero-visual">
+              <HeroGraphic />
+            </div>
+          </div>
+        </section>
+
+        <section id="features" className="main-features">
+          {MAIN_FEATURES.map((feat, i) => {
+            const Visual = feat.Visual;
+            const reverse = i % 2 === 1;
+            return (
+              <article
+                key={feat.id}
+                className={`feature-row ${reverse ? "reverse" : ""}`}
+                id={`feature-${feat.id}`}
+              >
+                <div className="shell feature-split">
+                  <div className="feature-text">
+                    <h2>{feat.title}</h2>
+                    {feat.copy.map((p) => (
+                      <p key={p}>{p}</p>
+                    ))}
+                  </div>
+                  <div className="feature-frame">
+                    <Visual />
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+
+        <section className="more" id="more">
+          <div className="shell">
+            <h2>More, without the extra</h2>
+            <p className="more-lede">
+              A short list of what is actually in the app. Not a gold mine of other people’s sounds.
+            </p>
+            <div className="more-grid">
+              {MORE.map((card) => (
+                <article key={card.title} className="more-card">
+                  <h3>{card.title}</h3>
+                  <p>{card.body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="download-wrap" id="download">
+          <div className="download">
+            <h2>Download Fieldy</h2>
+            <p>Free for Mac and Windows. No account. Runs on your computer, offline.</p>
+            <DownloadButtons />
+          </div>
+        </section>
+      </main>
+
+      <footer className="footer">
+        <div className="shell">
+          <div className="footer-top">
+            <Logo height={20} />
+            <p className="tagline">free · offline · yours</p>
+          </div>
+          <div className="footer-links">
+            <a href="#download" onClick={jumpTo("download")}>
+              Download
+            </a>
+            <a href="#features" onClick={jumpTo("features")}>
+              Features
+            </a>
+            <a href="#legal">Privacy</a>
+            <a href="#legal">Terms</a>
+          </div>
+          <p className="legal" id="legal">
+            Fieldy is a desktop library for your own recordings. Not a cloud SFX platform, not a shop,
+            not a search of the internet.
+          </p>
+        </div>
+      </footer>
+    </>
+  );
+}

@@ -4,7 +4,7 @@ Desktop app for automated audio ingest, classification, metadata tagging, librar
 
 Architecture for agents: `.cursor/rules/` (always-on `00-architecture.mdc`) plus `docs/ARCHITECTURE.md`. History of the original 11 phases: `docs/IMPLEMENTATION.md`.
 
-**Status (2026-09-22):** Original phases **1–11 are done**, plus later UX: move/copy ingest, undo/redo, WAV/AIFF/FLAC/MP3, drop-zone progress, library-root relocate/fresh, placement why, row select + keyboard/batch, sample-tool player (level, loop, autoplay, pitch/tempo), window chrome and empty states. Product name is **Fieldy** (repo `/Users/davidpieri/Fieldy`). Tests: `python -m pytest python/tests -q` only — no Electron UI tests.
+**Status (2026-09-22):** Original phases **1–11 are done**, plus later UX: move/copy ingest, undo/redo, WAV/AIFF/FLAC/MP3, drop-zone progress, library-root relocate/fresh, placement why, row select + keyboard/batch, sample-tool player (level, loop, autoplay, pitch/tempo), window chrome and empty states. Product name is **Fieldy** (repo `/Users/davidpieri/Fieldy`). Tests: `python -m pytest python/tests -q` only — no Electron UI tests. Marketing home (this repo, not the desktop app): `cd web && npm install && npm run dev`.
 
 ## What the app does
 
@@ -50,9 +50,21 @@ printf '%s\n' '{"id":"1","method":"ping"}' | python python/main.py
 npm start
 ```
 
-Electron spawns `.venv/bin/python` when developing (`PYTHONUNBUFFERED=1`, `FIELDY_ROOT` = repo). Packaged builds spawn `python-runtime` from extraResources. The listening model is `models/yamnet` (gitignored; fetch script above) — not downloaded on first drop.
+Electron spawns `.venv/bin/python` when developing (`PYTHONUNBUFFERED=1`, `FIELDY_ROOT` = repo). Packaged builds spawn `python-runtime` from extraResources. That runtime is a relocatable CPython (python-build-standalone) with `python/requirements-pack.txt` installed into it — the user’s Mac does not need Homebrew. The listening model is `models/yamnet` (gitignored; fetch script above) — not downloaded on first drop.
 
-Root `npm start` runs `npm start --prefix electron`. Optional unpacked `.app`: `npm run pack` (copies `.venv` → `python-runtime` on this Mac only; not a signed installer).
+Root `npm start` runs `npm start --prefix electron`.
+
+Unsigned Mac app (this Mac, same CPU arch): `npm run pack`, then zip `electron/dist/mac-arm64/Fieldy.app` (or `mac/` on Intel) for the website. Gatekeeper asks the user to allow it.
+
+Unsigned Windows app (x64, built on this Mac): `npm run pack:win`. Link `electron/dist/Fieldy-windows-x64.zip`. The user unzips it and runs `Fieldy.exe`. Windows SmartScreen asks them to allow it. The Windows Python tree is `python-runtime-win` and is not the Mac runtime.
+
+Signed installer (DMG): `npm run dist:mac`. Requires a **Developer ID Application** certificate in the login keychain (or `CSC_LINK` / `CSC_KEY_PASSWORD`) and one notarization set:
+
+- `APPLE_API_KEY` (path to the `.p8` file), `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`
+- or `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
+- or `APPLE_KEYCHAIN_PROFILE` (optional `APPLE_KEYCHAIN`)
+
+The script stops if those are missing, so it does not emit an unsigned DMG. Output is under `electron/dist/`. Build on Apple Silicon for arm64 and on Intel for x64; each DMG carries the matching `python-runtime`.
 
 Reset onboarding: quit the app, delete `~/.Fieldy/pointer.json` (legacy `~/.soundly-lite/pointer.json` is still read if the new pointer is missing).
 
@@ -65,6 +77,7 @@ Fieldy/
 │   └── core/                 # config, preprocess, classifier, mapper, playback, …
 ├── config/                   # yamnet_class_map.csv, audioset_ontology.json, schema
 ├── data/                     # Optional library root (gitignored audio)
+├── web/                      # Marketing home (Vite + React)
 └── .cursor/rules/
 ```
 
@@ -74,4 +87,4 @@ See `.cursor/rules/03-ipc-bridge.mdc`. Python is long-lived. Renderer never muta
 
 ## Not in the app yet
 
-Auto-slicing long takes into shorter files; score-o-gram UI; signed/notarized installer. Packager-ready extraResources + on-disk YAMNet are in place (`npm run pack` is an unsigned unpacked `.app` for local testing).
+Paid code signing. The site can link the unsigned Mac `.app` (`npm run pack`) and the unsigned Windows zip (`npm run pack:win`). `npm run dist:mac` is still there if a Developer ID is added later.

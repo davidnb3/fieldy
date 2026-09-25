@@ -1,0 +1,27 @@
+---
+description: Use Material Symbols for icons. Do not draw new icon artwork.
+alwaysApply: true
+---
+
+# Icons
+
+Do not design or draw icons. No hand-written SVG pictograms, no invented paths, no “simple” stand-in glyphs.
+
+Use [Material Symbols](https://fonts.google.com/icons) Outlined. Add only the names you need on the existing Google Fonts stylesheet, `icon_names` in alphabetical order:
+
+```html
+<link
+  href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=pets,train&display=block"
+  rel="stylesheet"
+/>
+```
+
+```jsx
+<span className="material-symbols-outlined" aria-hidden="true">
+  train
+</span>
+```
+
+The ligature text is the official icon name (`train`, `pets`, `waves`). If Material Symbols has no glyph for a concept, pick the closest existing name. Do not draw a replacement.
+
+The Fieldy logo lockup is a brand mark, not an icon. Leave `electron/renderer/fieldy-logo.svg` and the inline logo SVG alone.

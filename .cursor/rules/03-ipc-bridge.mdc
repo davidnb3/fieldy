@@ -8,8 +8,8 @@ alwaysApply: false
 
 ## Transport
 
-- Electron `child_process.spawn(venv python, ["-u", "python/main.py"], { stdio: pipe })`.
-- `PYTHONUNBUFFERED=1`.
+- Electron `child_process.spawn(python, ["-u", "{root}/python/main.py"], { stdio: pipe })`.
+- `PYTHONUNBUFFERED=1`. `FIELDY_ROOT` + `FIELDY_YAMNET_DIR`.
 - One JSON object per line on stdin/stdout.
 - **stdout = protocol only.** All logs, TF warnings, traceback → stderr.
 
@@ -27,7 +27,7 @@ alwaysApply: false
 | method | params | result |
 | --- | --- | --- |
 | ping | {} | {pong:true} |
-| get_config | {} | config or {needsOnboarding:true} |
+| get_config | {} | config or {needsOnboarding:true}; may include `libraryRootProblem`: `missing` \| `unreadable` |
 | save_config | {libraryRoot, thresholds…, playback prefs?, libraryRootMode?} | {ok:true} — merges with previous saved config. `libraryRootMode` is `relocate` or `fresh`. Playback keys: `playbackVolume` 0–1, `playbackLoop`, `autoPlayOnSelect`, `playbackMuted`, `playbackPitch`, `playbackPitchEnabled`, `playbackPitchRange` 2\|4\|8, `playbackPitchResetOnNew`, `playbackPreservePitch` |
 | classify_and_ingest | {paths: string[]} | {jobs: JobResult[]} |
 | list_library | {} | {libraryRoot, folders, recentlyAdded, favorites, collections} |
@@ -38,6 +38,7 @@ alwaysApply: false
 | create_collection | {name} | {id, name} — virtual list, no mkdir |
 | add_to_collection | {id, path or paths} | {id, path, paths} — library files |
 | prepare_playback | {path} | {previewPath, duration, peaksMin, peaksMax, …} — 16-bit temp WAV + waveform peaks; original unchanged |
+| warmup | {} | {ok:true, ready:true} — load the on-disk listening model once (after onboarding / app open, not on first drop) |
 | history_state | {} | {canUndo, canRedo} — session stack in the Python process |
 | undo | {} | {canUndo, canRedo} |
 | redo | {} | {canUndo, canRedo} |
@@ -48,9 +49,11 @@ alwaysApply: false
 
 - `ipcMain.handle("python-call", (e, method, params) => pythonCall(method, params))`
 - Promise map keyed by `id`. Bad stdout lines are logged, not fatal.
-- Events: `webContents.send("python-event", msg)`
-- preload: `window.fieldy.call`, `onEvent`, `pathForFile`, `statPath`, `chooseLibraryRoot`, `readPlaybackFile`, `startLibraryDrag`, `showInFinder`, `openExternal`
-- Spawn bundled `python-runtime` when packaged (`process.resourcesPath`); unpackaged uses repo `.venv` unless `python-runtime` exists. `PYTHONUNBUFFERED=1`, `PYTHONPATH={root}/python`, `FIELDY_ROOT`, `FIELDY_YAMNET_DIR`. Override with `FIELDY_PYTHON` / `FIELDY_ROOT`. Missing interpreter or repeated crash → `backend` events to the renderer (in-app dialog/banner), not a pip/`showErrorBox` lecture. `retry-python` resets the crash counter and respawns.
+- Events: `webContents.send("python-event", msg)` — `progress` and `backend` (`ok` / `retrying` / `missing` / `dead`)
+- preload: `window.fieldy.call`, `onEvent`, `pathForFile`, `statPath`, `chooseLibraryRoot`, `readPlaybackFile`, `startLibraryDrag`, `showInFinder`, `openExternal`, `retryPython`
+- `app.setName("Fieldy")` before `whenReady`. Spawn bundled `python-runtime` when packaged (`process.resourcesPath`); unpackaged uses repo `.venv` unless `python-runtime` exists. `PYTHONUNBUFFERED=1`, `PYTHONPATH={root}/python`, `FIELDY_ROOT`, `FIELDY_YAMNET_DIR`. Override with `FIELDY_PYTHON` / `FIELDY_ROOT`. Missing interpreter or repeated crash → `backend` events to the renderer (in-app dialog/banner), not a pip/`showErrorBox` lecture. `retry-python` resets the crash counter and respawns.
+- IPC `error` strings: `core.errors.explain`. Renderer `friendlyError` strips `Error invoking remote method 'python-call'` and unknown leftovers become one generic line.
+- `npm run pack` (repo root): `scripts/prepare-pack-resources.sh` (relocatable `python-runtime`) then unsigned unpacked macOS `.app` (`electron/dist/mac-arm64/Fieldy.app` on Apple Silicon). `FIELDY_UNSIGNED=1` sets `mac.identity: null`. `npm run pack:win` builds unsigned Windows x64 (`electron/dist/win-unpacked`, zip `Fieldy-windows-x64.zip`) using `python-runtime-win` and `python.exe`. `npm run dist:mac` is the optional Developer ID DMG (`scripts/dist-mac.sh`). The script exits if the certificate or notary env vars are missing.
 - If Python exits, reject in-flight promises and respawn unless the app is quitting.
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
 
