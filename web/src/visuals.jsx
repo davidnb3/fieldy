@@ -218,6 +218,155 @@ function useFileDrag(sceneRef) {
   }, [sceneRef]);
 }
 
+const ROOT_FOLDERS = ["Mixed", "Speech", "Rain", "Wind"];
+
+function useLocalDemo(sceneRef) {
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const pointer = scene.querySelector(".drag-pointer");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const place = (x, y) => {
+      pointer.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    };
+
+    const point = (el) => {
+      const origin = scene.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      return {
+        x: rect.left + Math.min(28, rect.width * 0.45) - origin.left,
+        y: rect.top + rect.height / 2 - origin.top,
+      };
+    };
+
+    let raf = 0;
+    let running = false;
+    let phaseStart = 0;
+    let mode = "to-root";
+    let index = 0;
+    let from = null;
+
+    const clear = () => {
+      scene.querySelectorAll(".is-hot, .is-hover, .is-selected, .is-playing").forEach((el) => {
+        el.classList.remove("is-hot", "is-hover", "is-selected", "is-playing");
+      });
+    };
+
+    const paintStill = () => {
+      clear();
+      const row = scene.querySelector(".mini-row");
+      row?.classList.add("is-selected", "is-playing");
+      const name = row?.querySelector(".mini-name");
+      if (!name) return;
+      const at = point(name);
+      place(at.x, at.y);
+    };
+
+    const tick = (now) => {
+      const root = scene.querySelector(".local-root");
+      const rows = [...scene.querySelectorAll(".mini-row")];
+      const row = rows[index % rows.length];
+      const name = row?.querySelector(".mini-name");
+      if (!root || !row || !name) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+
+      const rootPt = point(root.querySelector(".local-root-name") || root);
+      const filePt = point(name);
+      const elapsed = (now - phaseStart) / 1000;
+      clear();
+
+      let pos = rootPt;
+      let pressing = false;
+
+      if (mode === "to-root") {
+        const origin = from || { x: rootPt.x + 210, y: rootPt.y };
+        const p = Math.min(1, elapsed / 0.72);
+        pos = arc(origin, rootPt, p, -20);
+        if (p > 0.78) root.classList.add("is-hot");
+        if (p >= 1) {
+          mode = "root";
+          phaseStart = now;
+        }
+      } else if (mode === "root") {
+        pos = rootPt;
+        root.classList.add("is-hot");
+        if (elapsed > 0.45) {
+          from = rootPt;
+          mode = "to-file";
+          phaseStart = now;
+        }
+      } else if (mode === "to-file") {
+        const p = Math.min(1, elapsed / 0.64);
+        pos = arc(from || rootPt, filePt, p, -24);
+        if (p > 0.72) row.classList.add("is-hover");
+        if (p >= 1) {
+          mode = "hover";
+          phaseStart = now;
+        }
+      } else if (mode === "hover") {
+        pos = filePt;
+        row.classList.add("is-hover");
+        if (elapsed > 0.28) {
+          mode = "play";
+          phaseStart = now;
+        }
+      } else {
+        pos = filePt;
+        row.classList.add("is-selected", "is-playing");
+        pressing = elapsed < 0.14;
+        if (elapsed > 1.2) {
+          from = filePt;
+          index = (index + 1) % rows.length;
+          mode = "to-root";
+          phaseStart = now;
+        }
+      }
+
+      place(pos.x, pos.y);
+      pointer.classList.toggle("is-down", pressing);
+      raf = requestAnimationFrame(tick);
+    };
+
+    const stop = () => {
+      running = false;
+      cancelAnimationFrame(raf);
+      raf = 0;
+    };
+
+    const start = () => {
+      if (running || reduce) return;
+      running = true;
+      phaseStart = performance.now();
+      raf = requestAnimationFrame(tick);
+    };
+
+    paintStill();
+
+    const visible = () => {
+      const rect = scene.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    };
+    const sync = () => {
+      if (!document.hidden && visible()) start();
+      else stop();
+    };
+
+    const io = new IntersectionObserver(sync, { threshold: 0.25 });
+    io.observe(scene);
+    document.addEventListener("visibilitychange", sync);
+
+    return () => {
+      stop();
+      io.disconnect();
+      document.removeEventListener("visibilitychange", sync);
+    };
+  }, [sceneRef]);
+}
+
 function useSpin(trackRef, count, wheel) {
   useEffect(() => {
     const track = trackRef.current;
@@ -404,28 +553,65 @@ export function DragOutVisual() {
 }
 
 export function LocalFolderVisual() {
+  const sceneRef = useRef(null);
+  useLocalDemo(sceneRef);
+
   return (
-    <svg className="feature-svg" viewBox="0 0 480 340" role="img" aria-label="A library folder on your computer">
-      <rect x="1" y="1" width="478" height="338" rx="20" fill="#24262b" stroke="#3c4043" />
-      <g transform="translate(88 78)">
-        <path d="M24 52h220v140H24z" fill="#2e3138" stroke="#ff8a3d" strokeWidth="2" />
-        <path d="M24 52h72l16-18h48v18" fill="#3a3d45" stroke="#ff8a3d" strokeWidth="2" />
-        <text x="134" y="128" textAnchor="middle" fill="#e8eaed" fontSize="18" fontFamily="Syne, sans-serif" fontWeight="700">
-          Your folder
-        </text>
-        <text x="134" y="154" textAnchor="middle" fill="#9aa0a6" fontSize="13" fontFamily="Inter, sans-serif">
-          on this machine
-        </text>
-      </g>
-      <g className="anim-pulse" transform="translate(340 48)">
-        <circle cx="40" cy="40" r="28" fill="none" stroke="#3c4043" strokeWidth="2" />
-        <path d="M28 40h24M40 28v24" stroke="#3c4043" strokeWidth="2" />
-        <line x1="18" y1="18" x2="62" y2="62" stroke="#e5534b" strokeWidth="3" />
-      </g>
-      <text x="380" y="128" textAnchor="middle" fill="#9aa0a6" fontSize="11" fontFamily="Inter, sans-serif">
-        no cloud
-      </text>
-    </svg>
+    <div className="local-scene" ref={sceneRef} role="img" aria-label="Fieldy plays files from one folder on this computer, with no network and no cloud">
+      <div className="local-window">
+        <div className="local-bar">
+          <div className="local-root">
+            <MaterialIcon name="folder" />
+            <span className="local-root-copy">
+              <span className="local-root-name">Recordings</span>
+              <span className="local-where">on this computer</span>
+            </span>
+          </div>
+          <div className="offline-status">
+            <span className="offline-chip">
+              <MaterialIcon name="wifi_off" />
+              Offline
+            </span>
+            <span className="offline-chip">
+              <MaterialIcon name="cloud_off" />
+              No cloud
+            </span>
+          </div>
+        </div>
+        <div className="local-body">
+          <div className="local-side">
+            {ROOT_FOLDERS.map((name) => (
+              <div className={`local-folder${name === "Wind" ? " is-open" : ""}`} key={name}>
+                {name}
+              </div>
+            ))}
+          </div>
+          <div className="mini-list">
+            {WIND_ROWS.map((file) => (
+              <div className="mini-row" key={file.name}>
+                <span className="mini-grip" aria-hidden="true">
+                  {Array.from({ length: 6 }, (_, i) => (
+                    <i key={i} />
+                  ))}
+                </span>
+                <span className="mini-play" aria-hidden="true">
+                  <span className="mini-play-icon">▶</span>
+                  <span className="mini-pause-icon">⏸</span>
+                </span>
+                <span className="mini-star" aria-hidden="true">
+                  ☆
+                </span>
+                <span className="mini-name">{file.name}</span>
+                <span className="mini-dur">{file.duration}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <span className="drag-pointer" aria-hidden="true">
+        <MaterialIcon name="arrow_selector_tool" />
+      </span>
+    </div>
   );
 }
 
