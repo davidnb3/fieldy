@@ -847,50 +847,12 @@ p {
 
 @media (prefers-reduced-motion: reduce) {
   .library-icon,
-  .anim-pulse,
-  .anim-ring,
   .free-float,
   .free-tile {
     animation: none;
   }
 
   .drag-ghost {
-    opacity: 0;
-  }
-}
-
-.feature-svg {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.anim-pulse {
-  animation: fadePulse 2.2s ease-in-out infinite;
-}
-
-@keyframes fadePulse {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-.anim-ring {
-  animation: ring 3s ease-out infinite;
-  transform-origin: 240px 150px;
-}
-
-@keyframes ring {
-  0% {
-    transform: scale(0.92);
-    opacity: 0.5;
-  }
-  100% {
-    transform: scale(1.18);
     opacity: 0;
   }
 }

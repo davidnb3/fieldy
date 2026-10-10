@@ -95,10 +95,6 @@ def load_yamnet_class_names_ordered(path: Path | None = None) -> list[str]:
     return names
 
 
-def load_yamnet_class_names(path: Path | None = None) -> frozenset[str]:
-    return frozenset(load_yamnet_class_names_ordered(path))
-
-
 YAMNET_CLASS_NAMES_ORDERED: list[str] = load_yamnet_class_names_ordered()
 YAMNET_CLASS_NAMES: frozenset[str] = frozenset(YAMNET_CLASS_NAMES_ORDERED)
 

@@ -1,2 +1,0 @@
-# View modules — split renderer JS here in Phase 8–10 if app.js grows.
-# Keep onboarding, dropzone, and library explorer in separate files then.

@@ -56,7 +56,3 @@ def rename_file(path: str, new_name: str) -> str:
         raise FileExistsError(str(dest))
     p.rename(dest)
     return str(dest)
-
-
-def delete_file(path: str) -> None:
-    Path(path).unlink()

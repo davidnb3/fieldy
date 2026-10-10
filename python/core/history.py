@@ -44,38 +44,8 @@ class History:
         if src != dest:
             self.push([{"kind": "move", "src": src, "dest": dest}])
 
-    def record_delete(
-        self,
-        path: str,
-        stash: str,
-        *,
-        was_favorite: bool,
-        collection_ids: list[str],
-    ) -> None:
-        self.push(
-            [
-                {
-                    "kind": "delete",
-                    "path": path,
-                    "stash": stash,
-                    "wasFavorite": was_favorite,
-                    "collectionIds": list(collection_ids),
-                }
-            ]
-        )
-
-    def record_favorite(self, path: str, previous: bool, next_value: bool) -> None:
-        if previous != next_value:
-            self.push(
-                [{"kind": "favorite", "path": path, "previous": previous, "next": next_value}]
-            )
-
     def record_collection_create(self, collection_id: str, name: str) -> None:
         self.push([{"kind": "collection_create", "id": collection_id, "name": name}])
-
-    def record_collection_add(self, collection_id: str, path: str, added: bool) -> None:
-        if added:
-            self.push([{"kind": "collection_add", "id": collection_id, "path": path}])
 
     def rewrite_paths(self, old: str, new: str | None) -> None:
         if not old or old == new:

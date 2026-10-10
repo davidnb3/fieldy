@@ -1107,12 +1107,6 @@ async function loadPreview(file, { play = false, restart = false } = {}) {
   }
 }
 
-async function playFile(file, { restart = false } = {}) {
-  showPlayer();
-  playback.wantPlay = true;
-  await loadPreview(file, { play: true, restart });
-}
-
 async function togglePlayback(file) {
   if (!file) {
     file = primarySelectedFile();
@@ -1939,10 +1933,6 @@ function isUnderLibraryRoot(filePath) {
   const normalized = String(filePath || "").replace(/\\/g, "/");
   if (!root || !normalized) return false;
   return normalized === root || normalized.startsWith(`${root}/`);
-}
-
-function setFileFavorite(file, favorite) {
-  return starFiles(actionTargets(file), favorite);
 }
 
 function starFiles(files, favorite) {
