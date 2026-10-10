@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { jumpTo, usePath } from "./route.jsx";
+import { jumpTo, scrollToId, usePath } from "./route.jsx";
 import { PrivacyPage, TermsPage } from "./legal.jsx";
 import { ContactPage, SiteFooter, SiteHeader, SupportPage } from "./support.jsx";
 import {
@@ -169,7 +169,7 @@ function Home() {
     if (!target) return;
     const previous = document.documentElement.style.scrollBehavior;
     document.documentElement.style.scrollBehavior = "auto";
-    target.scrollIntoView();
+    scrollToId(id, "auto");
     document.documentElement.style.scrollBehavior = previous;
   }, []);
 

@@ -228,15 +228,14 @@ p {
 #features,
 #download,
 #more {
-  scroll-margin-top: var(--nav-h);
+  scroll-margin-top: 0;
 }
 
 .feature-row {
   position: relative;
-  min-height: 100vh;
   display: flex;
   align-items: center;
-  padding: 80px 0;
+  padding: 56px 0;
 }
 
 .feature-split {

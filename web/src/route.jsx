@@ -2,10 +2,18 @@ import { useCallback, useEffect, useState } from "react";
 
 const HOME_TITLE = "Fieldy — Your recordings. Your folders. Only on your computer.";
 
+export function scrollToId(id, behavior = "smooth") {
+  const target = document.getElementById(id);
+  if (!target) return;
+  const navHeight = document.querySelector(".nav")?.getBoundingClientRect().height ?? 0;
+  const top = Math.max(0, target.getBoundingClientRect().top + window.scrollY - navHeight);
+  window.scrollTo({ top, behavior });
+}
+
 export function jumpTo(id) {
   return (event) => {
     event.preventDefault();
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    scrollToId(id);
     window.history.replaceState(null, "", `#${id}`);
   };
 }
