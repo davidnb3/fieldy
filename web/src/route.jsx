@@ -51,6 +51,8 @@ export function usePath() {
     const titles = {
       "/support": "Support & Contact — Fieldy",
       "/contact": "Contact — Fieldy",
+      "/privacy": "Privacy — Fieldy",
+      "/terms": "Terms — Fieldy",
     };
     document.title = titles[path] || HOME_TITLE;
   }, [path]);

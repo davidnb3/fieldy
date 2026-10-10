@@ -10,6 +10,8 @@ function supportRoutes() {
       if (!html || html.type !== "asset") return;
       this.emitFile({ type: "asset", fileName: "support/index.html", source: html.source });
       this.emitFile({ type: "asset", fileName: "contact/index.html", source: html.source });
+      this.emitFile({ type: "asset", fileName: "privacy/index.html", source: html.source });
+      this.emitFile({ type: "asset", fileName: "terms/index.html", source: html.source });
     },
   };
 }

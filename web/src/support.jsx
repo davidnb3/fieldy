@@ -5,17 +5,16 @@ import { jumpTo } from "./route.jsx";
 const FAQS = [
   {
     id: "blocked",
-    q: "Why does my Mac or PC block Fieldy?",
+    q: "Why does Windows block Fieldy?",
     a: [
-      "The downloads are unsigned. Fieldy does not have a paid Apple Developer ID or a Windows code-signing certificate, so Gatekeeper and SmartScreen stop an app they do not recognize until you allow it.",
-      "On a Mac, unzip the download, Control-click Fieldy, and choose Open. If macOS still refuses, open System Settings, go to Privacy & Security, and choose Open Anyway.",
-      "On Windows, if SmartScreen says it protected your PC, choose More info, then Run anyway. You allow it once. The file is the Fieldy build from this site.",
+      "The Windows download is unsigned. Fieldy does not have a paid code-signing certificate, so SmartScreen stops an app it does not recognize until you allow it.",
+      "If SmartScreen says it protected your PC, choose More info, then Run anyway. You allow it once. The file is the Fieldy build from this site.",
     ],
   },
   {
     id: "which-computer",
-    q: "Which Mac or Windows PC can run it?",
-    a: "The Mac download is for Apple Silicon. There is no Intel Mac build. The Windows download is 64-bit.",
+    q: "Which PC can run it?",
+    a: "The download is 64-bit Windows. The source code is on GitHub.",
   },
   {
     id: "account",
@@ -79,7 +78,7 @@ const FAQS = [
 ];
 
 const TOPICS = [
-  "My Mac or PC blocked the app",
+  "Windows blocked the app",
   "Download or install",
   "The library folder",
   "Dropping and organizing files",
@@ -156,10 +155,18 @@ export function SiteFooter({ path, navigate }) {
           <a href="/support" onClick={(event) => navigate(event, "/support")}>
             Support & Contact
           </a>
-          <a href={home ? "#legal" : "/#legal"} onClick={home ? jumpTo("legal") : undefined}>
+          <a
+            href="/privacy"
+            aria-current={path === "/privacy" ? "page" : undefined}
+            onClick={(event) => navigate(event, "/privacy")}
+          >
             Privacy
           </a>
-          <a href={home ? "#legal" : "/#legal"} onClick={home ? jumpTo("legal") : undefined}>
+          <a
+            href="/terms"
+            aria-current={path === "/terms" ? "page" : undefined}
+            onClick={(event) => navigate(event, "/terms")}
+          >
             Terms
           </a>
         </div>
@@ -298,7 +305,7 @@ export function ContactPage() {
         <div className="page-intro">
           <h1>Tell us what happened.</h1>
           <p className="page-lead">
-            Your Mac or PC blocked the app, a folder went missing, or a file landed somewhere you
+            Windows blocked the app, a folder went missing, or a file landed somewhere you
             didn’t expect? We’re happy to help.
           </p>
         </div>

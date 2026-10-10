@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { jumpTo, usePath } from "./route.jsx";
+import { PrivacyPage, TermsPage } from "./legal.jsx";
 import { ContactPage, SiteFooter, SiteHeader, SupportPage } from "./support.jsx";
 import {
   DropFiledVisual,
@@ -18,9 +19,8 @@ function detectOs() {
 const DOWNLOADS = {
   mac: {
     id: "mac",
-    label: "Download for Mac",
-    href: "https://pub-e44d3963d21b4f35a226df362031034a.r2.dev/Fieldy-mac-arm64.zip",
-    file: "Fieldy-mac-arm64.zip",
+    label: "View on GitHub",
+    href: "https://github.com/davidnb3/fieldy",
   },
   windows: {
     id: "windows",
@@ -37,10 +37,20 @@ function DownloadButtons({ primaryClass = "btn-primary", secondaryClass = "btn-g
 
   return (
     <div className="cta-row">
-      <a className={primaryClass} href={primary.href} download={primary.file} data-os={primary.id}>
+      <a
+        className={primaryClass}
+        href={primary.href}
+        {...(primary.file ? { download: primary.file } : {})}
+        data-os={primary.id}
+      >
         {primary.label}
       </a>
-      <a className={secondaryClass} href={secondary.href} download={secondary.file} data-os={secondary.id}>
+      <a
+        className={secondaryClass}
+        href={secondary.href}
+        {...(secondary.file ? { download: secondary.file } : {})}
+        data-os={secondary.id}
+      >
         {secondary.label}
       </a>
     </div>
@@ -112,8 +122,8 @@ const MORE = [
     body: "Matching class names are written as tags on the original. Empty when nothing reached the threshold.",
   },
   {
-    title: "Available on Mac and Windows",
-    body: "A desktop app for Mac and Windows. Free to download, no account required.",
+    title: "Available on Windows",
+    body: "A free Windows download. The code is on GitHub. No account required.",
   },
   {
     title: "No account",
@@ -139,6 +149,10 @@ export default function App() {
         <SupportPage navigate={navigate} />
       ) : path === "/contact" ? (
         <ContactPage />
+      ) : path === "/privacy" ? (
+        <PrivacyPage navigate={navigate} />
+      ) : path === "/terms" ? (
+        <TermsPage navigate={navigate} />
       ) : (
         <Home />
       )}
@@ -231,7 +245,7 @@ function Home() {
         <section className="download-wrap" id="download">
           <div className="download">
             <h2>Download Fieldy</h2>
-            <p>Free for Mac and Windows. No account. Runs on your computer, offline.</p>
+            <p>Free for Windows. The code is on GitHub. No account. Runs on your computer, offline.</p>
             <DownloadButtons />
           </div>
         </section>
