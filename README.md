@@ -12,22 +12,39 @@ Fieldy is a desktop library for your own recordings. Drop WAV, AIFF, FLAC, or MP
 
 ## Run locally
 
-Python 3.12 and Node.js.
+Install Python 3.12 and Node.js first.
 
-App, from the repo root:
+**Python 3.12**
+
+- Mac: [python.org/downloads/macos](https://www.python.org/downloads/macos/). Install the Python 3.12 release.
+- Windows: [python.org/downloads/windows](https://www.python.org/downloads/windows/). Install the Python 3.12 release and leave **Add python.exe to PATH** checked.
+
+**Node.js 22 or newer**
+
+- Mac and Windows: [nodejs.org](https://nodejs.org/). The long-term support installer includes npm.
+
+From the repo root, the Python commands need the internet once. They install the Python packages and download the listening model. After that, `npm start` is enough.
+
+### Mac
 
 ```bash
 python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r python/requirements.txt
-python scripts/fetch_yamnet.py
+.venv/bin/python -m pip install -r python/requirements.txt
+.venv/bin/python scripts/fetch_yamnet.py
 npm install --prefix electron
 npm start
 ```
 
-Site:
+### Windows
 
-```bash
-npm install --prefix web
-npm run site
+In PowerShell or Command Prompt:
+
+```bat
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r python\requirements.txt
+.venv\Scripts\python.exe scripts\fetch_yamnet.py
+npm install --prefix electron
+npm start
 ```
+
+`py -3.12` is the Windows Python launcher. If the terminal does not find it, close the terminal, open a new one, and try again.
